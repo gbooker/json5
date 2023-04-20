@@ -162,7 +162,10 @@ inline void to_stream( std::ostream &os, const value &v, const writer_params &wp
 				for ( int i = 0; i <= depth; ++i ) os << wp.indentation;
 
 				if ( wp.json_compatible )
-					os << "\"" << kvp.first << "\"" << kvSeparator;
+				{
+					to_stream( os, kvp.first, '"', wp.escape_unicode );
+					os << kvSeparator;
+				}
 				else
 					os << kvp.first << kvSeparator;
 

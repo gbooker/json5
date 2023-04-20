@@ -503,12 +503,8 @@ inline error parser::parse_identifier( detail::string_offset &result )
 	int firstCh = peek();
 	bool isString = ( firstCh == '\'' ) || ( firstCh == '"' );
 
-	if ( isString && next() ) // Consume '\'' or '"'
-	{
-		int ch = peek();
-		if ( !isalpha( ch ) && ch != '_' )
-			return make_error( error::syntax_error );
-	}
+	if ( isString ) // Use the string parsing function
+		return parse_string(result);
 
 	while ( !eof() )
 	{
