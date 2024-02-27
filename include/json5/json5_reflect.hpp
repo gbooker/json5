@@ -114,6 +114,17 @@ inline json5::value write_array( writer &w, const T *in, size_t numItems )
 template <typename T, typename A>
 inline json5::value write( writer &w, const std::vector<T, A> &in ) { return write_array( w, in.data(), in.size() ); }
 
+template <typename A>
+inline json5::value write(writer& w, const std::vector<bool, A>& in)
+{
+	w.push_array();
+
+	for (size_t i = 0; i < in.size(); ++i)
+		w += write(w, (bool)in[i]);
+
+	return w.pop();
+}
+
 //---------------------------------------------------------------------------------------------------------------------
 template <typename T, size_t N>
 inline json5::value write( writer &w, const T( &in )[N] ) { return write_array( w, in, N ); }
