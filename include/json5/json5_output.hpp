@@ -10,21 +10,21 @@ namespace json5
 {
 
   // Writes json5::document into stream
-  void to_stream(std::ostream& os, const document& doc, const writer_params& wp = writer_params());
+  void ToStream(std::ostream& os, const Document& doc, const WriterParams& wp = WriterParams());
 
   // Converts json5::document to string
-  void to_string(std::string& str, const document& doc, const writer_params& wp = writer_params());
+  void ToString(std::string& str, const Document& doc, const WriterParams& wp = WriterParams());
 
   // Returns json5::document converted to string
-  std::string to_string(const document& doc, const writer_params& wp = writer_params());
+  std::string ToString(const Document& doc, const WriterParams& wp = WriterParams());
 
   // Write json5::document into file, returns 'true' on success
-  bool to_file(const std::string& fileName, const document& doc, const writer_params& wp = writer_params());
+  bool ToFile(const std::string& fileName, const Document& doc, const WriterParams& wp = WriterParams());
 
   ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
   //---------------------------------------------------------------------------------------------------------------------
-  inline void to_stream(std::ostream& os, const char* str, char quotes, bool escapeUnicode)
+  inline void ToStream(std::ostream& os, const char* str, char quotes, bool escapeUnicode)
   {
     if (quotes)
       os << quotes;
@@ -106,7 +106,7 @@ namespace json5
   }
 
   //---------------------------------------------------------------------------------------------------------------------
-  inline void to_stream(std::ostream& os, const value& v, const writer_params& wp, int depth)
+  inline void ToStream(std::ostream& os, const Value& v, const WriterParams& wp, int depth)
   {
     const char* kvSeparator = ": ";
     const char* eol = wp.eol;
@@ -118,31 +118,31 @@ namespace json5
       eol = "";
     }
 
-    if (v.is_null())
+    if (v.isNull())
       os << "null";
-    else if (v.is_boolean())
-      os << (v.get_bool() ? "true" : "false");
-    else if (v.is_number())
+    else if (v.isBoolean())
+      os << (v.getBool() ? "true" : "false");
+    else if (v.isNumber())
     {
       if (double _, d = v.get<double>(); modf(d, &_) == 0.0)
         os << v.get<int64_t>();
       else
         os << d;
     }
-    else if (v.is_string())
+    else if (v.isString())
     {
-      to_stream(os, v.get_c_str(), '"', wp.escape_unicode);
+      ToStream(os, v.getCStr(), '"', wp.escapeUnicode);
     }
-    else if (v.is_array())
+    else if (v.isArray())
     {
-      if (auto av = json5::array_view(v); !av.empty())
+      if (auto av = json5::ArrayView(v); !av.empty())
       {
         os << "[" << eol;
-        for (size_t i = 0, S = av.size(); i < S; ++i)
+        for (size_t i = 0, s = av.size(); i < s; ++i)
         {
           for (int i = 0; i <= depth; ++i) os << wp.indentation;
-          to_stream(os, av[i], wp, depth + 1);
-          if (i < S - 1)
+          ToStream(os, av[i], wp, depth + 1);
+          if (i < s - 1)
             os << ",";
           os << eol;
         }
@@ -153,9 +153,9 @@ namespace json5
       else
         os << "[]";
     }
-    else if (v.is_object())
+    else if (v.isObject())
     {
-      if (auto ov = json5::object_view(v); !ov.empty())
+      if (auto ov = json5::ObjectView(v); !ov.empty())
       {
         os << "{" << eol;
         size_t count = ov.size();
@@ -163,15 +163,15 @@ namespace json5
         {
           for (int i = 0; i <= depth; ++i) os << wp.indentation;
 
-          if (wp.json_compatible)
+          if (wp.jsonCompatible)
           {
-            to_stream(os, kvp.first, '"', wp.escape_unicode);
+            ToStream(os, kvp.first, '"', wp.escapeUnicode);
             os << kvSeparator;
           }
           else
             os << kvp.first << kvSeparator;
 
-          to_stream(os, kvp.second, wp, depth + 1);
+          ToStream(os, kvp.second, wp, depth + 1);
           if (--count)
             os << ",";
           os << eol;
@@ -189,49 +189,49 @@ namespace json5
   }
 
   //---------------------------------------------------------------------------------------------------------------------
-  inline void to_stream(std::ostream& os, const document& doc, const writer_params& wp)
+  inline void ToStream(std::ostream& os, const Document& doc, const WriterParams& wp)
   {
-    to_stream(os, doc, wp, 0);
+    ToStream(os, doc, wp, 0);
   }
 
   //---------------------------------------------------------------------------------------------------------------------
-  inline void to_string(std::string& str, const document& doc, const writer_params& wp)
+  inline void ToString(std::string& str, const Document& doc, const WriterParams& wp)
   {
     std::ostringstream os;
-    to_stream(os, doc, wp);
+    ToStream(os, doc, wp);
     str = os.str();
   }
 
   //---------------------------------------------------------------------------------------------------------------------
-  inline std::string to_string(const document& doc, const writer_params& wp)
+  inline std::string ToString(const Document& doc, const WriterParams& wp)
   {
     std::string result;
-    to_string(result, doc, wp);
+    ToString(result, doc, wp);
     return result;
   }
 
   //---------------------------------------------------------------------------------------------------------------------
-  inline bool to_file(const std::string& fileName, const document& doc, const writer_params& wp)
+  inline bool ToFile(const std::string& fileName, const Document& doc, const WriterParams& wp)
   {
     std::ofstream ofs(fileName);
     if (!ofs.is_open())
       return false;
 
-    to_stream(ofs, doc, wp);
+    ToStream(ofs, doc, wp);
     return true;
   }
 
   //---------------------------------------------------------------------------------------------------------------------
-  inline void to_stream(std::ostream& os, const error& err)
+  inline void ToStream(std::ostream& os, const Error& err)
   {
-    os << err.type_string[err.type] << " at " << err.line << ":" << err.column;
+    os << err.TypeString[err.type] << " at " << err.line << ":" << err.column;
   }
 
   //---------------------------------------------------------------------------------------------------------------------
-  inline std::string to_string(const error& err)
+  inline std::string ToString(const Error& err)
   {
     std::ostringstream os;
-    to_stream(os, err);
+    ToStream(os, err);
     return os.str();
   }
 

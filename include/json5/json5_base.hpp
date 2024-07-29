@@ -13,14 +13,14 @@
 */
 #define JSON5_CLASS(_Name, ...)                                                            \
   template <>                                                                              \
-  struct json5::detail::class_wrapper<_Name>                                               \
+  struct json5::detail::ClassWrapper<_Name>                                                \
   {                                                                                        \
     static constexpr const char* names = #__VA_ARGS__;                                     \
-    inline static auto make_named_tuple(_Name& out) noexcept                               \
+    inline static auto MakeNamedTuple(_Name& out) noexcept                                 \
     {                                                                                      \
       return std::tuple(names, std::tie(_JSON5_CONCAT(_JSON5_PREFIX_OUT, (__VA_ARGS__)))); \
     }                                                                                      \
-    inline static auto make_named_tuple(const _Name& in) noexcept                          \
+    inline static auto MakeNamedTuple(const _Name& in) noexcept                            \
     {                                                                                      \
       return std::tuple(names, std::tie(_JSON5_CONCAT(_JSON5_PREFIX_IN, (__VA_ARGS__))));  \
     }                                                                                      \
@@ -39,19 +39,19 @@
 */
 #define JSON5_CLASS_INHERIT(_Name, _Base, ...)                                         \
   template <>                                                                          \
-  struct json5::detail::class_wrapper<_Name>                                           \
+  struct json5::detail::ClassWrapper<_Name>                                            \
   {                                                                                    \
     static constexpr const char* names = #__VA_ARGS__;                                 \
-    inline static auto make_named_tuple(_Name& out) noexcept                           \
+    inline static auto MakeNamedTuple(_Name& out) noexcept                             \
     {                                                                                  \
       return std::tuple_cat(                                                           \
-        json5::detail::class_wrapper<_Base>::make_named_tuple(out),                    \
+        json5::detail::ClassWrapper<_Base>::MakeNamedTuple(out),                       \
         std::tuple(names, std::tie(_JSON5_CONCAT(_JSON5_PREFIX_OUT, (__VA_ARGS__))))); \
     }                                                                                  \
-    inline static auto make_named_tuple(const _Name& in) noexcept                      \
+    inline static auto MakeNamedTuple(const _Name& in) noexcept                        \
     {                                                                                  \
       return std::tuple_cat(                                                           \
-        json5::detail::class_wrapper<_Base>::make_named_tuple(in),                     \
+        json5::detail::ClassWrapper<_Base>::MakeNamedTuple(in),                        \
         std::tuple(names, std::tie(_JSON5_CONCAT(_JSON5_PREFIX_IN, (__VA_ARGS__)))));  \
     }                                                                                  \
   };
@@ -67,11 +67,11 @@
   }
 */
 #define JSON5_MEMBERS(...)                                               \
-  inline auto make_named_tuple() noexcept                                \
+  inline auto makeNamedTuple() noexcept                                  \
   {                                                                      \
     return std::tuple((const char*)#__VA_ARGS__, std::tie(__VA_ARGS__)); \
   }                                                                      \
-  inline auto make_named_tuple() const noexcept                          \
+  inline auto makeNamedTuple() const noexcept                            \
   {                                                                      \
     return std::tuple((const char*)#__VA_ARGS__, std::tie(__VA_ARGS__)); \
   }
@@ -92,16 +92,16 @@
   }
 */
 #define JSON5_MEMBERS_INHERIT(_Base, ...)                            \
-  inline auto make_named_tuple() noexcept                            \
+  inline auto makeNamedTuple() noexcept                              \
   {                                                                  \
     return std::tuple_cat(                                           \
-      json5::detail::class_wrapper<_Base>::make_named_tuple(*this),  \
+      json5::detail::ClassWrapper<_Base>::MakeNamedTuple(*this),     \
       std::tuple((const char*)#__VA_ARGS__, std::tie(__VA_ARGS__))); \
   }                                                                  \
-  inline auto make_named_tuple() const noexcept                      \
+  inline auto makeNamedTuple() const noexcept                        \
   {                                                                  \
     return std::tuple_cat(                                           \
-      json5::detail::class_wrapper<_Base>::make_named_tuple(*this),  \
+      json5::detail::ClassWrapper<_Base>::MakeNamedTuple(*this),     \
       std::tuple((const char*)#__VA_ARGS__, std::tie(__VA_ARGS__))); \
   }
 
@@ -116,11 +116,11 @@
 */
 #define JSON5_ENUM(_Name, ...)                             \
   template <>                                              \
-  struct json5::detail::enum_table<_Name> : std::true_type \
+  struct json5::detail::EnumTable<_Name> : std::true_type  \
   {                                                        \
     using enum _Name;                                      \
-    static constexpr const char* names = #__VA_ARGS__;     \
-    static constexpr const _Name values[] = {__VA_ARGS__}; \
+    static constexpr const char* Names = #__VA_ARGS__;     \
+    static constexpr const _Name Values[] = {__VA_ARGS__}; \
   };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -129,35 +129,35 @@ namespace json5
 {
 
   /* Forward declarations */
-  class builder;
-  class document;
-  class parser;
-  class value;
+  class Builder;
+  class Document;
+  class Parser;
+  class Value;
 
   //---------------------------------------------------------------------------------------------------------------------
-  struct error final
+  struct Error final
   {
     enum
     {
-      none,               // no error
-      invalid_root,       // document root is not an object or array
-      unexpected_end,     // unexpected end of JSON data (end of stream, string or file)
-      syntax_error,       // general parsing error
-      invalid_literal,    // invalid literal, only "true", "false", "null" allowed
-      invalid_escape_seq, // invalid or unsupported string escape \ sequence
-      comma_expected,     // expected comma ','
-      colon_expected,     // expected color ':'
-      boolean_expected,   // expected boolean literal "true" or "false"
-      number_expected,    // expected number
-      string_expected,    // expected string "..."
-      object_expected,    // expected object { ... }
-      array_expected,     // expected array [ ... ]
-      wrong_array_size,   // invalid number of array elements
-      invalid_enum,       // invalid enum value or string (conversion failed)
-      could_not_open,     // stream is not open
+      None,             // no error
+      InvalidRoot,      // document root is not an object or array
+      UnexpectedEnd,    // unexpected end of JSON data (end of stream, string or file)
+      SyntaxError,      // general parsing error
+      InvalidLiteral,   // invalid literal, only "true", "false", "null" allowed
+      InvalidEscapeSeq, // invalid or unsupported string escape \ sequence
+      CommaExpected,    // expected comma ','
+      ColonExpected,    // expected color ':'
+      BooleanExpected,  // expected boolean literal "true" or "false"
+      NumberExpected,   // expected number
+      StringExpected,   // expected string "..."
+      ObjectExpected,   // expected object { ... }
+      ArrayExpected,    // expected array [ ... ]
+      WrongArraySize,   // invalid number of array elements
+      InvalidEnum,      // invalid enum value or string (conversion failed)
+      CouldNotOpen,     // stream is not open
     };
 
-    static constexpr const char* type_string[] =
+    static constexpr const char* TypeString[] =
       {
         "none",
         "invalid root",
@@ -177,15 +177,15 @@ namespace json5
         "could not open stream",
     };
 
-    int type = none;
+    int type = None;
     int line = 0;
     int column = 0;
 
-    operator int() const noexcept { return type; }
+    operator int() const noexcept { return type; } // NOLINT(google-explicit-constructor)
   };
 
   //---------------------------------------------------------------------------------------------------------------------
-  struct writer_params
+  struct WriterParams
   {
     // One level of indentation
     const char* indentation = "  ";
@@ -197,24 +197,24 @@ namespace json5
     bool compact = false;
 
     // Write regular JSON (don't use any JSON5 features)
-    bool json_compatible = false;
+    bool jsonCompatible = false;
 
     // Escape unicode characters in strings
-    bool escape_unicode = false;
+    bool escapeUnicode = false;
 
     // Custom user data pointer
-    void* user_data = nullptr;
+    void* userData = nullptr;
   };
 
   //---------------------------------------------------------------------------------------------------------------------
-  enum class value_type
+  enum class ValueType
   {
-    null = 0,
-    boolean,
-    number,
-    array,
-    string,
-    object
+    Null = 0,
+    Boolean,
+    Number,
+    Array,
+    String,
+    Object
   };
 
 } // namespace json5
@@ -224,34 +224,34 @@ namespace json5
 namespace json5::detail
 {
 
-  using string_offset = unsigned;
+  using StringOffset = unsigned;
 
   template <typename T>
-  struct class_wrapper
+  struct ClassWrapper
   {
-    inline static auto make_named_tuple(T& in) noexcept { return in.make_named_tuple(); }
-    inline static auto make_named_tuple(const T& in) noexcept { return in.make_named_tuple(); }
+    inline static auto MakeNamedTuple(T& in) noexcept { return in.makeNamedTuple(); }
+    inline static auto MakeNamedTuple(const T& in) noexcept { return in.makeNamedTuple(); }
   };
 
   template <typename T>
-  struct enum_table : std::false_type
+  struct EnumTable : std::false_type
   {
   };
 
-  class char_source
+  class CharSource
   {
   public:
-    virtual ~char_source() = default;
+    virtual ~CharSource() = default;
 
     virtual int next() = 0;
     virtual int peek() = 0;
     virtual bool eof() const = 0;
 
-    error make_error(int type) const noexcept { return error {type, _line, _column}; }
+    Error makeError(int type) const noexcept { return Error {type, m_line, m_column}; }
 
   protected:
-    int _line = 1;
-    int _column = 1;
+    int m_line = 1;
+    int m_column = 1;
   };
 
 } // namespace json5::detail

@@ -9,60 +9,60 @@
 namespace json5
 {
 
-  // Parse json5::document from stream
-  error from_stream(std::istream& is, document& doc);
+  // Parse json5::Document from stream
+  Error FromStream(std::istream& is, Document& doc);
 
-  // Parse json5::document from string
-  error from_string(std::string_view str, document& doc);
+  // Parse json5::Document from string
+  Error FromString(std::string_view str, Document& doc);
 
-  // Parse json5::document from file
-  error from_file(std::string_view fileName, document& doc);
+  // Parse json5::Document from file
+  Error FromFile(std::string_view fileName, Document& doc);
 
   ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  class parser final : builder
+  class Parser final : Builder
   {
   public:
-    parser(document& doc, detail::char_source& chars)
-      : builder(doc)
-      , _chars(chars)
+    Parser(Document& doc, detail::CharSource& chars)
+      : Builder(doc)
+      , m_chars(chars)
     {}
 
-    error parse();
+    Error parse();
 
   private:
-    int next() { return _chars.next(); }
-    int peek() { return _chars.peek(); }
-    bool eof() const { return _chars.eof(); }
-    error make_error(int type) const noexcept { return _chars.make_error(type); }
+    int next() { return m_chars.next(); }
+    int peek() { return m_chars.peek(); }
+    bool eof() const { return m_chars.eof(); }
+    Error makeError(int type) const noexcept { return m_chars.makeError(type); }
 
-    enum class token_type
+    enum class TokenType
     {
-      unknown,
-      identifier,
-      string,
-      number,
-      colon,
-      comma,
-      object_begin,
-      object_end,
-      array_begin,
-      array_end,
-      literal_true,
-      literal_false,
-      literal_null
+      Unknown,
+      Identifier,
+      String,
+      Number,
+      Colon,
+      Comma,
+      ObjectBegin,
+      ObjectEnd,
+      ArrayBegin,
+      ArrayEnd,
+      LiteralTrue,
+      LiteralFalse,
+      LiteralNull
     };
 
-    error parse_value(value& result);
-    error parse_object();
-    error parse_array();
-    error peek_next_token(token_type& result);
-    error parse_number(double& result);
-    error parse_string(detail::string_offset& result);
-    error parse_identifier(detail::string_offset& result);
-    error parse_literal(token_type& result);
+    Error parseValue(Value& result);
+    Error parseObject();
+    Error parseArray();
+    Error peekNextToken(TokenType& result);
+    Error parseNumber(double& result);
+    Error parseString(detail::StringOffset& result);
+    Error parseIdentifier(detail::StringOffset& result);
+    Error parseLiteral(TokenType& result);
 
-    detail::char_source& _chars;
+    detail::CharSource& m_chars;
   };
 
   ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -71,74 +71,74 @@ namespace json5
   {
 
     //---------------------------------------------------------------------------------------------------------------------
-    class stl_istream : public char_source
+    class StlIstream : public CharSource
     {
     public:
-      stl_istream(std::istream& is)
-        : _is(is)
+      explicit StlIstream(std::istream& is)
+        : m_is(is)
       {}
 
       int next() override
       {
-        if (_is.peek() == '\n')
+        if (m_is.peek() == '\n')
         {
-          _column = 0;
-          ++_line;
+          m_column = 0;
+          ++m_line;
         }
 
-        ++_column;
-        return _is.get();
+        ++m_column;
+        return m_is.get();
       }
 
-      int peek() override { return _is.peek(); }
+      int peek() override { return m_is.peek(); }
 
-      bool eof() const override { return _is.eof() || _is.fail(); }
+      bool eof() const override { return m_is.eof() || m_is.fail(); }
 
     protected:
-      std::istream& _is;
+      std::istream& m_is;
     };
 
     //---------------------------------------------------------------------------------------------------------------------
-    class memory_block : public char_source
+    class MemoryBlock : public CharSource
     {
     public:
-      memory_block(const void* ptr, size_t size)
-        : _cursor(reinterpret_cast<const char*>(ptr))
-        , _size(ptr ? size : 0)
+      MemoryBlock(const void* ptr, size_t size)
+        : m_cursor(reinterpret_cast<const char*>(ptr))
+        , m_size(ptr ? size : 0)
       {
       }
 
       int next() override
       {
-        if (_size == 0)
+        if (m_size == 0)
           return -1;
 
-        int ch = uint8_t(*_cursor++);
+        int ch = uint8_t(*m_cursor++);
 
         if (ch == '\n')
         {
-          _column = 0;
-          ++_line;
+          m_column = 0;
+          ++m_line;
         }
 
-        ++_column;
-        --_size;
+        ++m_column;
+        --m_size;
         return ch;
       }
 
       int peek() override
       {
-        if (_size == 0)
+        if (m_size == 0)
           return -1;
 
-        return uint8_t(*_cursor);
+        return uint8_t(*m_cursor);
       }
 
-      bool eof() const override { return _size == 0; }
+      bool eof() const override { return m_size == 0; }
 
     protected:
-      const char* _cursor = nullptr;
-      size_t _size = 0;
+      const char* m_cursor = nullptr;
+      size_t m_size = 0;
     };
 
   } // namespace detail
@@ -146,75 +146,75 @@ namespace json5
   ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
   //---------------------------------------------------------------------------------------------------------------------
-  inline error parser::parse()
+  inline Error Parser::parse()
   {
     reset();
 
-    if (auto err = parse_value(_doc))
+    if (auto err = parseValue(m_doc))
       return err;
 
-    if (!_doc.is_array() && !_doc.is_object())
-      return make_error(error::invalid_root);
+    if (!m_doc.isArray() && !m_doc.isObject())
+      return makeError(Error::InvalidRoot);
 
-    return {error::none};
+    return {Error::None};
   }
 
   //---------------------------------------------------------------------------------------------------------------------
-  inline error parser::parse_value(value& result)
+  inline Error Parser::parseValue(Value& result)
   {
-    token_type tt = token_type::unknown;
-    if (auto err = peek_next_token(tt))
+    TokenType tt = TokenType::Unknown;
+    if (auto err = peekNextToken(tt))
       return err;
 
     switch (tt)
     {
-    case token_type::number: {
-      if (double number = 0.0; auto err = parse_number(number))
+    case TokenType::Number: {
+      if (double number = 0.0; auto err = parseNumber(number))
         return err;
       else
-        result = value(number);
+        result = Value(number);
     }
     break;
 
-    case token_type::string: {
-      if (detail::string_offset offset = 0; auto err = parse_string(offset))
+    case TokenType::String: {
+      if (detail::StringOffset offset = 0; auto err = parseString(offset))
         return err;
       else
-        result = new_string(offset);
+        result = newString(offset);
     }
     break;
 
-    case token_type::identifier: {
-      if (token_type lit = token_type::unknown; auto err = parse_literal(lit))
+    case TokenType::Identifier: {
+      if (TokenType lit = TokenType::Unknown; auto err = parseLiteral(lit))
         return err;
       else
       {
-        if (lit == token_type::literal_true)
-          result = value(true);
-        else if (lit == token_type::literal_false)
-          result = value(false);
-        else if (lit == token_type::literal_null)
-          result = value(nullptr);
+        if (lit == TokenType::LiteralTrue)
+          result = Value(true);
+        else if (lit == TokenType::LiteralFalse)
+          result = Value(false);
+        else if (lit == TokenType::LiteralNull)
+          result = Value(nullptr);
         else
-          return make_error(error::invalid_literal);
+          return makeError(Error::InvalidLiteral);
       }
     }
     break;
 
-    case token_type::object_begin: {
-      push_object();
+    case TokenType::ObjectBegin: {
+      pushObject();
       {
-        if (auto err = parse_object())
+        if (auto err = parseObject())
           return err;
       }
       result = pop();
     }
     break;
 
-    case token_type::array_begin: {
-      push_array();
+    case TokenType::ArrayBegin: {
+      pushArray();
       {
-        if (auto err = parse_array())
+        if (auto err = parseArray())
           return err;
       }
       result = pop();
@@ -222,190 +222,190 @@ namespace json5
     break;
 
     default:
-      return make_error(error::syntax_error);
+      return makeError(Error::SyntaxError);
     }
 
-    return {error::none};
+    return {Error::None};
   }
 
   //---------------------------------------------------------------------------------------------------------------------
-  inline error parser::parse_object()
+  inline Error Parser::parseObject()
   {
     next(); // Consume '{'
 
     bool expectComma = false;
     while (!eof())
     {
-      token_type tt = token_type::unknown;
-      if (auto err = peek_next_token(tt))
+      TokenType tt = TokenType::Unknown;
+      if (auto err = peekNextToken(tt))
         return err;
 
-      detail::string_offset keyOffset;
+      detail::StringOffset keyOffset;
 
       switch (tt)
       {
-      case token_type::identifier:
-      case token_type::string: {
+      case TokenType::Identifier:
+      case TokenType::String: {
         if (expectComma)
-          return make_error(error::comma_expected);
+          return makeError(Error::CommaExpected);
 
-        if (auto err = parse_identifier(keyOffset))
+        if (auto err = parseIdentifier(keyOffset))
           return err;
       }
       break;
 
-      case token_type::object_end:
+      case TokenType::ObjectEnd:
         next(); // Consume '}'
-        return {error::none};
+        return {Error::None};
 
-      case token_type::comma:
+      case TokenType::Comma:
         if (!expectComma)
-          return make_error(error::syntax_error);
+          return makeError(Error::SyntaxError);
 
         next(); // Consume ','
         expectComma = false;
         continue;
 
       default:
-        return expectComma ? make_error(error::comma_expected) : make_error(error::syntax_error);
+        return expectComma ? makeError(Error::CommaExpected) : makeError(Error::SyntaxError);
       }
 
-      if (auto err = peek_next_token(tt))
+      if (auto err = peekNextToken(tt))
         return err;
 
-      if (tt != token_type::colon)
-        return make_error(error::colon_expected);
+      if (tt != TokenType::Colon)
+        return makeError(Error::ColonExpected);
 
       next(); // Consume ':'
 
-      value newValue;
-      if (auto err = parse_value(newValue))
+      Value newValue;
+      if (auto err = parseValue(newValue))
         return err;
 
       (*this)[keyOffset] = newValue;
       expectComma = true;
     }
 
-    return make_error(error::unexpected_end);
+    return makeError(Error::UnexpectedEnd);
   }
 
   //---------------------------------------------------------------------------------------------------------------------
-  inline error parser::parse_array()
+  inline Error Parser::parseArray()
   {
     next(); // Consume '['
 
     bool expectComma = false;
     while (!eof())
     {
-      token_type tt = token_type::unknown;
-      if (auto err = peek_next_token(tt))
+      TokenType tt = TokenType::Unknown;
+      if (auto err = peekNextToken(tt))
         return err;
 
-      if (tt == token_type::array_end && next()) // Consume ']'
-        return {error::none};
+      if (tt == TokenType::ArrayEnd && next()) // Consume ']'
+        return {Error::None};
       else if (expectComma)
       {
         expectComma = false;
 
-        if (tt != token_type::comma)
-          return make_error(error::comma_expected);
+        if (tt != TokenType::Comma)
+          return makeError(Error::CommaExpected);
 
         next(); // Consume ','
         continue;
       }
 
-      value newValue;
-      if (auto err = parse_value(newValue))
+      Value newValue;
+      if (auto err = parseValue(newValue))
         return err;
 
       (*this) += newValue;
       expectComma = true;
     }
 
-    return make_error(error::unexpected_end);
+    return makeError(Error::UnexpectedEnd);
   }
 
   //---------------------------------------------------------------------------------------------------------------------
-  inline error parser::peek_next_token(token_type& result)
+  inline Error Parser::peekNextToken(TokenType& result)
   {
-    enum class comment_type
+    enum class CommentType
     {
-      none,
-      line,
-      block
-    } parsingComment = comment_type::none;
+      None,
+      Line,
+      Block
+    } parsingComment = CommentType::None;
 
     while (!eof())
     {
       int ch = peek();
       if (ch == '\n')
       {
-        if (parsingComment == comment_type::line)
-          parsingComment = comment_type::none;
+        if (parsingComment == CommentType::Line)
+          parsingComment = CommentType::None;
       }
-      else if (parsingComment != comment_type::none || (ch > 0 && ch <= 32))
+      else if (parsingComment != CommentType::None || (ch > 0 && ch <= 32))
       {
-        if (parsingComment == comment_type::block && ch == '*' && next()) // Consume '*'
+        if (parsingComment == CommentType::Block && ch == '*' && next()) // Consume '*'
         {
           if (peek() == '/')
-            parsingComment = comment_type::none;
+            parsingComment = CommentType::None;
         }
       }
       else if (ch == '/' && next()) // Consume '/'
       {
         if (peek() == '/')
-          parsingComment = comment_type::line;
+          parsingComment = CommentType::Line;
         else if (peek() == '*')
-          parsingComment = comment_type::block;
+          parsingComment = CommentType::Block;
         else
-          return make_error(error::syntax_error);
+          return makeError(Error::SyntaxError);
       }
       else if (strchr("{}[]:,", ch))
       {
         if (ch == '{')
-          result = token_type::object_begin;
+          result = TokenType::ObjectBegin;
         else if (ch == '}')
-          result = token_type::object_end;
+          result = TokenType::ObjectEnd;
         else if (ch == '[')
-          result = token_type::array_begin;
+          result = TokenType::ArrayBegin;
         else if (ch == ']')
-          result = token_type::array_end;
+          result = TokenType::ArrayEnd;
         else if (ch == ':')
-          result = token_type::colon;
+          result = TokenType::Colon;
         else if (ch == ',')
-          result = token_type::comma;
+          result = TokenType::Comma;
 
-        return {error::none};
+        return {Error::None};
       }
       else if (isalpha(ch) || ch == '_')
       {
-        result = token_type::identifier;
-        return {error::none};
+        result = TokenType::Identifier;
+        return {Error::None};
       }
       else if (isdigit(ch) || ch == '.' || ch == '+' || ch == '-')
       {
         if (ch == '+')
           next(); // Consume leading '+'
 
-        result = token_type::number;
-        return {error::none};
+        result = TokenType::Number;
+        return {Error::None};
       }
       else if (ch == '"' || ch == '\'')
       {
-        result = token_type::string;
-        return {error::none};
+        result = TokenType::String;
+        return {Error::None};
       }
       else
-        return make_error(error::syntax_error);
+        return makeError(Error::SyntaxError);
 
       next();
     }
 
-    return make_error(error::unexpected_end);
+    return makeError(Error::UnexpectedEnd);
   }
 
   //---------------------------------------------------------------------------------------------------------------------
-  inline error parser::parse_number(double& result)
+  inline Error Parser::parseNumber(double& result)
   {
     char buff[256] = {};
     size_t length = 0;
@@ -423,27 +423,27 @@ namespace json5
     auto convResult = std::from_chars(buff, buff + length, result);
 
     if (convResult.ec != std::errc())
-      return make_error(error::syntax_error);
+      return makeError(Error::SyntaxError);
 #else
     char* buffEnd = nullptr;
     result = strtod(buff, &buffEnd);
 
     if (result == 0.0 && buffEnd == buff)
-      return make_error(error::syntax_error);
+      return makeError(Error::SyntaxError);
 #endif
 
-    return {error::none};
+    return {Error::None};
   }
 
   //---------------------------------------------------------------------------------------------------------------------
-  inline error parser::parse_string(detail::string_offset& result)
+  inline Error Parser::parseString(detail::StringOffset& result)
   {
-    static const constexpr char* hexChars = "0123456789abcdefABCDEF";
+    static const constexpr char* HexChars = "0123456789abcdefABCDEF";
 
     bool singleQuoted = peek() == '\'';
     next(); // Consume '\'' or '"'
 
-    result = string_buffer_offset();
+    result = stringBufferOffset();
 
     while (!eof())
     {
@@ -456,32 +456,32 @@ namespace json5
         if (ch == '\n' || ch == 'v' || ch == 'f')
           next();
         else if (ch == 't' && next())
-          string_buffer_add('\t');
+          stringBufferAdd('\t');
         else if (ch == 'n' && next())
-          string_buffer_add('\n');
+          stringBufferAdd('\n');
         else if (ch == 'r' && next())
-          string_buffer_add('\r');
+          stringBufferAdd('\r');
         else if (ch == 'b' && next())
-          string_buffer_add('\b');
+          stringBufferAdd('\b');
         else if (ch == '\\' && next())
-          string_buffer_add('\\');
+          stringBufferAdd('\\');
         else if (ch == '\'' && next())
-          string_buffer_add('\'');
+          stringBufferAdd('\'');
         else if (ch == '"' && next())
-          string_buffer_add('"');
+          stringBufferAdd('"');
         else if (ch == '\\' && next())
-          string_buffer_add('\\');
+          stringBufferAdd('\\');
         else if (ch == '/' && next())
-          string_buffer_add('/');
+          stringBufferAdd('/');
         else if (ch == '0' && next())
-          string_buffer_add(0);
+          stringBufferAdd(0);
         else if ((ch == 'x' || ch == 'u') && next())
         {
           char code[5] = {};
 
-          for (size_t i = 0, S = (ch == 'x') ? 2 : 4; i < S; ++i)
-            if (!strchr(hexChars, code[i] = char(next())))
-              return make_error(error::invalid_escape_seq);
+          for (size_t i = 0, s = (ch == 'x') ? 2 : 4; i < s; ++i)
+            if (!strchr(HexChars, code[i] = char(next())))
+              return makeError(Error::InvalidEscapeSeq);
 
           uint64_t unicodeChar = 0;
 
@@ -492,39 +492,39 @@ namespace json5
           unicodeChar = strtoull(code, &codeEnd, 16);
 
           if (!unicodeChar && codeEnd == code)
-            return make_error(error::invalid_escape_seq);
+            return makeError(Error::InvalidEscapeSeq);
 #endif
 
-          string_buffer_add_utf8(uint32_t(unicodeChar));
+          stringBufferAddUtf8(uint32_t(unicodeChar));
         }
         else
-          return make_error(error::invalid_escape_seq);
+          return makeError(Error::InvalidEscapeSeq);
       }
       else
-        string_buffer_add(next());
+        stringBufferAdd(next());
     }
 
     if (eof())
-      return make_error(error::unexpected_end);
+      return makeError(Error::UnexpectedEnd);
 
-    string_buffer_add(0);
-    return {error::none};
+    stringBufferAdd(0);
+    return {Error::None};
   }
 
   //---------------------------------------------------------------------------------------------------------------------
-  inline error parser::parse_identifier(detail::string_offset& result)
+  inline Error Parser::parseIdentifier(detail::StringOffset& result)
   {
-    result = string_buffer_offset();
+    result = stringBufferOffset();
 
     int firstCh = peek();
     bool isString = (firstCh == '\'') || (firstCh == '"');
 
     if (isString) // Use the string parsing function
-      return parse_string(result);
+      return parseString(result);
 
     while (!eof())
     {
-      string_buffer_add(next());
+      stringBufferAdd(next());
 
       int ch = peek();
       if (!isalpha(ch) && !isdigit(ch) && ch != '_')
@@ -532,14 +532,14 @@ namespace json5
     }
 
     if (isString && firstCh != next()) // Consume '\'' or '"'
-      return make_error(error::syntax_error);
+      return makeError(Error::SyntaxError);
 
-    string_buffer_add(0);
-    return {error::none};
+    stringBufferAdd(0);
+    return {Error::None};
   }
 
   //---------------------------------------------------------------------------------------------------------------------
-  inline error parser::parse_literal(token_type& result)
+  inline Error Parser::parseLiteral(TokenType& result)
   {
     int ch = peek();
 
@@ -548,8 +548,8 @@ namespace json5
     {
       if (next() && next() == 'r' && next() == 'u' && next() == 'e')
       {
-        result = token_type::literal_true;
-        return {error::none};
+        result = TokenType::LiteralTrue;
+        return {Error::None};
       }
     }
     // "false"
@@ -557,8 +557,8 @@ namespace json5
     {
       if (next() && next() == 'a' && next() == 'l' && next() == 's' && next() == 'e')
       {
-        result = token_type::literal_false;
-        return {error::none};
+        result = TokenType::LiteralFalse;
+        return {Error::None};
       }
     }
     // "null"
@@ -566,41 +566,41 @@ namespace json5
     {
       if (next() && next() == 'u' && next() == 'l' && next() == 'l')
       {
-        result = token_type::literal_null;
-        return {error::none};
+        result = TokenType::LiteralNull;
+        return {Error::None};
       }
     }
 
-    return make_error(error::invalid_literal);
+    return makeError(Error::InvalidLiteral);
   }
 
   ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
   //---------------------------------------------------------------------------------------------------------------------
-  inline error from_stream(std::istream& is, document& doc)
+  inline Error FromStream(std::istream& is, Document& doc)
   {
-    detail::stl_istream src(is);
-    parser r(doc, src);
+    detail::StlIstream src(is);
+    Parser r(doc, src);
     return r.parse();
   }
 
   //---------------------------------------------------------------------------------------------------------------------
-  inline error from_string(std::string_view str, document& doc)
+  inline Error FromString(std::string_view str, Document& doc)
   {
-    detail::memory_block src(str.data(), str.size());
-    parser r(doc, src);
+    detail::MemoryBlock src(str.data(), str.size());
+    Parser r(doc, src);
     return r.parse();
   }
 
   //---------------------------------------------------------------------------------------------------------------------
-  inline error from_file(std::string_view fileName, document& doc)
+  inline Error FromFile(std::string_view fileName, Document& doc)
   {
     std::ifstream ifs(std::string(fileName).c_str());
     if (!ifs.is_open())
-      return {error::could_not_open};
+      return {Error::CouldNotOpen};
 
     auto str = std::string(std::istreambuf_iterator<char>(ifs), std::istreambuf_iterator<char>());
-    return from_string(std::string_view(str), doc);
+    return FromString(std::string_view(str), doc);
   }
 
 } // namespace json5

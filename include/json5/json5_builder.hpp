@@ -5,61 +5,61 @@
 namespace json5
 {
 
-  class builder
+  class Builder
   {
   public:
-    builder(document& doc)
-      : _doc(doc)
+    explicit Builder(Document& doc)
+      : m_doc(doc)
     {}
 
-    const document& doc() const noexcept { return _doc; }
+    const Document& doc() const noexcept { return m_doc; }
 
-    detail::string_offset string_buffer_offset() const noexcept;
-    detail::string_offset string_buffer_add(std::string_view str);
-    void string_buffer_add(char ch) { _doc._strings.push_back(ch); }
-    void string_buffer_add_utf8(uint32_t ch);
+    detail::StringOffset stringBufferOffset() const noexcept;
+    detail::StringOffset stringBufferAdd(std::string_view str);
+    void stringBufferAdd(char ch) { m_doc.m_strings.push_back(ch); }
+    void stringBufferAddUtf8(uint32_t ch);
 
-    value new_string(detail::string_offset stringOffset) { return value(value_type::string, stringOffset); }
-    value new_string(std::string_view str) { return new_string(string_buffer_add(str)); }
+    Value newString(detail::StringOffset stringOffset) { return Value(ValueType::String, stringOffset); }
+    Value newString(std::string_view str) { return newString(stringBufferAdd(str)); }
 
-    void push_object();
-    void push_array();
-    value pop();
+    void pushObject();
+    void pushArray();
+    Value pop();
 
-    builder& operator+=(value v);
-    value& operator[](detail::string_offset keyOffset);
-    value& operator[](std::string_view key) { return (*this)[string_buffer_add(key)]; }
+    Builder& operator+=(Value v);
+    Value& operator[](detail::StringOffset keyOffset);
+    Value& operator[](std::string_view key) { return (*this)[stringBufferAdd(key)]; }
 
   protected:
     void reset() noexcept;
 
-    document& _doc;
-    std::vector<value> _stack;
-    std::vector<value> _values;
-    std::vector<size_t> _counts;
+    Document& m_doc;
+    std::vector<Value> m_stack;
+    std::vector<Value> m_values;
+    std::vector<size_t> m_counts;
   };
 
   ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
   //---------------------------------------------------------------------------------------------------------------------
-  inline detail::string_offset builder::string_buffer_offset() const noexcept
+  inline detail::StringOffset Builder::stringBufferOffset() const noexcept
   {
-    return detail::string_offset(_doc._strings.size());
+    return detail::StringOffset(m_doc.m_strings.size());
   }
 
   //---------------------------------------------------------------------------------------------------------------------
-  inline detail::string_offset builder::string_buffer_add(std::string_view str)
+  inline detail::StringOffset Builder::stringBufferAdd(std::string_view str)
   {
-    auto offset = string_buffer_offset();
-    _doc._strings += str;
-    _doc._strings.push_back(0);
+    auto offset = stringBufferOffset();
+    m_doc.m_strings += str;
+    m_doc.m_strings.push_back(0);
     return offset;
   }
 
   //---------------------------------------------------------------------------------------------------------------------
-  inline void builder::string_buffer_add_utf8(uint32_t ch)
+  inline void Builder::stringBufferAddUtf8(uint32_t ch)
   {
-    auto& s = _doc._strings;
+    auto& s = m_doc.m_strings;
 
     if (0 <= ch && ch <= 0x7f)
     {
@@ -103,72 +103,72 @@ namespace json5
   }
 
   //---------------------------------------------------------------------------------------------------------------------
-  inline void builder::push_object()
+  inline void Builder::pushObject()
   {
-    auto v = value(value_type::object, nullptr);
-    _stack.emplace_back(v);
-    _counts.push_back(0);
+    auto v = Value(ValueType::Object, nullptr);
+    m_stack.emplace_back(v);
+    m_counts.push_back(0);
   }
 
   //---------------------------------------------------------------------------------------------------------------------
-  inline void builder::push_array()
+  inline void Builder::pushArray()
   {
-    auto v = value(value_type::array, nullptr);
-    _stack.emplace_back(v);
-    _counts.push_back(0);
+    auto v = Value(ValueType::Array, nullptr);
+    m_stack.emplace_back(v);
+    m_counts.push_back(0);
   }
 
   //---------------------------------------------------------------------------------------------------------------------
-  inline value builder::pop()
+  inline Value Builder::pop()
   {
-    auto result = _stack.back();
-    auto count = _counts.back();
+    auto result = m_stack.back();
+    auto count = m_counts.back();
 
-    result.payload(_doc._values.size());
+    result.payload(m_doc.m_values.size());
 
-    _doc._values.push_back(value(double(count)));
+    m_doc.m_values.push_back(Value(double(count)));
 
-    auto startIndex = _values.size() - count;
-    for (size_t i = startIndex, S = _values.size(); i < S; ++i)
-      _doc._values.push_back(_values[i]);
+    auto startIndex = m_values.size() - count;
+    for (size_t i = startIndex, s = m_values.size(); i < s; ++i)
+      m_doc.m_values.push_back(m_values[i]);
 
-    _values.resize(_values.size() - count);
+    m_values.resize(m_values.size() - count);
 
-    _stack.pop_back();
-    _counts.pop_back();
+    m_stack.pop_back();
+    m_counts.pop_back();
 
-    if (_stack.empty())
+    if (m_stack.empty())
     {
-      _doc.assign_root(result);
-      result = _doc;
+      m_doc.assignRoot(result);
+      result = m_doc;
     }
 
     return result;
   }
 
   //---------------------------------------------------------------------------------------------------------------------
-  inline builder& builder::operator+=(value v)
+  inline Builder& Builder::operator+=(Value v)
   {
-    _values.push_back(v);
-    _counts.back() += 1;
+    m_values.push_back(v);
+    m_counts.back() += 1;
     return *this;
   }
 
   //---------------------------------------------------------------------------------------------------------------------
-  inline value& builder::operator[](detail::string_offset keyOffset)
+  inline Value& Builder::operator[](detail::StringOffset keyOffset)
   {
-    _values.push_back(new_string(keyOffset));
-    _counts.back() += 2;
-    return _values.emplace_back();
+    m_values.push_back(newString(keyOffset));
+    m_counts.back() += 2;
+    return m_values.emplace_back();
   }
 
   //---------------------------------------------------------------------------------------------------------------------
-  inline void builder::reset() noexcept
+  inline void Builder::reset() noexcept
   {
-    _doc._data = value::type_null;
-    _doc._values.clear();
-    _doc._strings.clear();
-    _doc._strings.push_back(0);
+    m_doc.data = Value::TypeNull;
+    m_doc.m_values.clear();
+    m_doc.m_strings.clear();
+    m_doc.m_strings.push_back(0);
   }
 
 } // namespace json5
