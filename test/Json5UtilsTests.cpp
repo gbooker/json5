@@ -1,11 +1,11 @@
 #include <gtest/gtest.h>
 
 /////////////////////////////////////////////////////////////////////////////////////////
-bool PrintError(const json5::error& err)
+bool PrintError(const json5::Error& err)
 {
   if (err)
   {
-    std::cout << json5::to_string(err) << std::endl;
+    std::cout << json5::ToString(err) << std::endl;
     return true;
   }
 
@@ -15,20 +15,20 @@ bool PrintError(const json5::error& err)
 /////////////////////////////////////////////////////////////////////////////////////////
 TEST(Json5, Build)
 {
-  json5::document doc;
-  json5::builder b(doc);
+  json5::Document doc;
+  json5::Builder b(doc);
 
-  b.push_object();
+  b.pushObject();
   {
-    b["x"] = b.new_string("Hello!");
-    b["y"] = json5::value(123.0);
-    b["z"] = json5::value(true);
+    b["x"] = b.newString("Hello!");
+    b["y"] = json5::Value(123.0);
+    b["z"] = json5::Value(true);
 
-    b.push_array();
+    b.pushArray();
     {
-      b += b.new_string("a");
-      b += b.new_string("b");
-      b += b.new_string("c");
+      b += b.newString("a");
+      b += b.newString("b");
+      b += b.newString("c");
     }
     b["arr"] = b.pop();
   }
@@ -45,15 +45,15 @@ TEST(Json5, Build)
   ]
 }
 )";
-  EXPECT_EQ(json5::to_string(doc), expected);
+  EXPECT_EQ(json5::ToString(doc), expected);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////
 TEST(Json5, LoadFromFile)
 {
-  json5::document doc;
+  json5::Document doc;
   fs::path path = "short_example.json5";
-  PrintError(json5::from_file(path.string(), doc));
+  PrintError(json5::FromFile(path.string(), doc));
 
   string expected = R"({
   unquoted: "and you can quote me on that",
@@ -69,17 +69,17 @@ TEST(Json5, LoadFromFile)
   backwardsCompatible: "with JSON"
 }
 )";
-  EXPECT_EQ(json5::to_string(doc), expected);
+  EXPECT_EQ(json5::ToString(doc), expected);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////
 TEST(Json5, Equality)
 {
-  json5::document doc1;
-  json5::from_string("{ x: 1, y: 2, z: 3 }", doc1);
+  json5::Document doc1;
+  json5::FromString("{ x: 1, y: 2, z: 3 }", doc1);
 
-  json5::document doc2;
-  json5::from_string("{ z: 3, x: 1, y: 2 }", doc2);
+  json5::Document doc2;
+  json5::FromString("{ z: 3, x: 1, y: 2 }", doc2);
 
   EXPECT_EQ(doc1, doc2);
 }
@@ -87,19 +87,19 @@ TEST(Json5, Equality)
 /////////////////////////////////////////////////////////////////////////////////////////
 TEST(Json5, FileSaveLoad)
 {
-  json5::document doc1;
-  json5::document doc2;
+  json5::Document doc1;
+  json5::Document doc2;
   fs::path path = "twitter.json";
-  PrintError(json5::from_file(path.string(), doc1));
+  PrintError(json5::FromFile(path.string(), doc1));
 
   {
-    json5::writer_params wp;
+    json5::WriterParams wp;
     wp.compact = true;
 
-    json5::to_file("twitter.json5", doc1, wp);
+    json5::ToFile("twitter.json5", doc1, wp);
   }
 
-  json5::from_file("twitter.json5", doc2);
+  json5::FromFile("twitter.json5", doc2);
 
   EXPECT_EQ(doc1, doc2);
 }
@@ -168,10 +168,10 @@ TEST(Json5, Reflection)
       // MyEnum::Second,
     };
 
-  json5::to_file("Foo.json5", foo1);
+  json5::ToFile("Foo.json5", foo1);
 
   Foo foo2;
-  json5::from_file("Foo.json5", foo2);
+  json5::FromFile("Foo.json5", foo2);
 
   EXPECT_EQ(foo1, foo2);
 }
@@ -201,8 +201,8 @@ TEST(Json5, DISABLED_Performance)
 
   for (int i = 0; i < 100; ++i)
   {
-    json5::document doc;
-    if (auto err = json5::from_string(str, doc))
+    json5::Document doc;
+    if (auto err = json5::FromString(str, doc))
       break;
   }
 }

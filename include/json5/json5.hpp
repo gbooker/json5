@@ -13,9 +13,9 @@ namespace json5
 
   /*
 
-json5::value
+  json5::value
 
-*/
+  */
   class value
   {
   public:
@@ -494,8 +494,7 @@ json5::array_view
       for (const auto kvp : other) pairs2[i++] = kvp;
     }
 
-    const auto comp = [](const key_value_pair& a, const key_value_pair& b) noexcept->bool
-    {
+    const auto comp = [](const key_value_pair& a, const key_value_pair& b) noexcept -> bool {
       return strcmp(a.first, b.first) < 0;
     };
 

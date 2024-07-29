@@ -8,14 +8,14 @@
 
 struct Settings
 {
-	int x = 0;
-	int y = 0;
-	int width = 0;
-	int height = 0;
-	bool fullscreen = false;
-	std::string renderer = "";
+  int x = 0;
+  int y = 0;
+  int width = 0;
+  int height = 0;
+  bool fullscreen = false;
+  std::string renderer = "";
 
-	JSON5_MEMBERS(x, y, width, height, fullscreen, renderer)
+  JSON5_MEMBERS(x, y, width, height, fullscreen, renderer)
 };
 
 Settings s;
@@ -64,7 +64,7 @@ struct vec3 { float x, y, z; };
 // Let's have a triangle struct with 'vec3' members
 struct Triangle
 {
-	vec3 a, b, c;
+  vec3 a, b, c;
 };
 
 JSON5_CLASS(Triangle, a, b, c)
@@ -72,19 +72,19 @@ JSON5_CLASS(Triangle, a, b, c)
 namespace json5::detail {
 
 // Write vec3 as JSON array of 3 numbers
-inline json5::value write( writer &w, const vec3 &in )
+inline json5::value write(writer &w, const vec3 &in)
 {
-	w.push_array();
-	w += write( w, in.x );
-	w += write( w, in.y );
-	w += write( w, in.z );
-	return w.pop();
+  w.push_array();
+  w += write(w, in.x);
+  w += write(w, in.y);
+  w += write(w, in.z);
+  return w.pop();
 }
 
 // Read vec3 from JSON array
-inline error read( const json5::value &in, vec3 &out )
+inline error read(const json5::value &in, vec3 &out)
 {
-	return read( json5::array_view( in ), out.x, out.y, out.z );
+  return read(json5::array_view(in), out.x, out.y, out.z);
 }
 
 } // namespace json5::detail
@@ -94,12 +94,12 @@ inline error read( const json5::value &in, vec3 &out )
 ```cpp
 enum class MyEnum
 {
-	Zero,
-	First,
-	Second,
-	Third
+  Zero,
+  First,
+  Second,
+  Third
 };
 
 // (must be placed in global namespce, requires C++20)
-JSON5_ENUM( MyEnum, Zero, First, Second, Third )
+JSON5_ENUM(MyEnum, Zero, First, Second, Third)
 ```
