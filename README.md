@@ -28,15 +28,16 @@ json5::ToFile("settings.json", s);
 ```
 
 ## `json5.hpp`
-TBD
+Provides the basic types of `json5::Document`, `json5::Value`, and `json5::IndependentValue`.  A `Value` represents a value within JSON but it relies on a `Document` for storage of non-primitive (string, array, object) data.  A `Value` may be more difficult to manipulate which is why the `IndependentValue` is provided.  An `IndependentValue` is self-contained and indepenedent of any other object.  It contains a variant which respresents all possible JSON value types.  Parsing is faster with a `Document` than with an `IndependentValue` due to its compact nature and small number of memory allocations.
 
 ## `json5_input.hpp`
-Provides functions to load `json5::Document` from string, stream or file.
+Provides functions to load `json5::Document` or `json5::IndependentValue` from string, stream or file.
 
 ## `json5_output.hpp`
-Provides functions to convert `json5::Document` into string, stream or file.
+Provides functions to convert `json5::Document` or `json5::IndependentValue` into string, stream or file.
 
 ## `json5_builder.hpp`
+Defines `Builder`s for building `Document`s and `IndependentValue`s.  Also provides the basis for building arbitrary objects via reflection.
 
 ## `json5_reflect.hpp`
 
@@ -48,6 +49,7 @@ Provides functions to convert `json5::Document` into string, stream or file.
 - `C array`
 
 ## `json5_base.hpp`
+Contains `Error` definitions, `ValueType` enum, and macro definitions.
 
 ## `json5_filter.hpp`
 

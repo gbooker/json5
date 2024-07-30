@@ -304,6 +304,25 @@ namespace json5
 
   ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+  /*
+
+  json5::IndependentValue
+
+  */
+
+  // The independent value represents arbitrary values in JSON without any reliance on a document.
+  class IndependentValue
+  {
+  public:
+    using Map = map<string, IndependentValue, std::less<>>;
+    using Array = vector<IndependentValue>;
+    using ValueType = std::variant<std::monostate, bool, double, string, Map, Array>;
+
+    ValueType value;
+
+    bool operator==(const IndependentValue& other) const { return value == other.value; }
+  };
+
   //---------------------------------------------------------------------------------------------------------------------
   inline Value::Value(ValueType t, uint64_t dataIn)
   {

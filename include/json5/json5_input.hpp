@@ -635,4 +635,26 @@ namespace json5
     DocumentBuilder builder(doc);
     return FromFile(fileName, builder);
   }
+
+  //---------------------------------------------------------------------------------------------------------------------
+  inline Error FromStream(std::istream& is, IndependentValue& value)
+  {
+    IndependentValueBuilder builder(value);
+    return FromStream(is, builder);
+  }
+
+  //---------------------------------------------------------------------------------------------------------------------
+  inline Error FromString(std::string_view str, IndependentValue& value)
+  {
+    IndependentValueBuilder builder(value);
+    return FromString(str, builder);
+  }
+
+  //---------------------------------------------------------------------------------------------------------------------
+  inline Error FromFile(std::string_view fileName, IndependentValue& value)
+  {
+    IndependentValueBuilder builder(value);
+    return FromFile(fileName, builder);
+  }
+
 } // namespace json5

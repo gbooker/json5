@@ -221,4 +221,93 @@ namespace json5
     std::vector<Value> m_values;
     std::vector<size_t> m_counts;
   };
+
+  class IndependentValueBuilder : public Builder
+  {
+  public:
+    explicit IndependentValueBuilder(IndependentValue& root)
+      : m_currentValue(root)
+    {
+      m_currentKey.value = "";
+    }
+
+    Error::Type setValue(double number) override
+    {
+      m_currentValue.get().value = number;
+      return Error::None;
+    }
+
+    Error::Type setValue(bool boolean) override
+    {
+      m_currentValue.get().value = boolean;
+      return Error::None;
+    }
+
+    Error::Type setValue(std::nullptr_t) override
+    {
+      m_currentValue.get().value = std::monostate();
+      return Error::None;
+    }
+
+    Error::Type setString() override
+    {
+      m_currentValue.get().value = "";
+      return Error::None;
+    }
+
+    void stringBufferAdd(char ch) override { std::get<std::string>(m_currentValue.get().value).push_back(ch); }
+    void stringBufferAdd(std::string_view str) override { std::get<std::string>(m_currentValue.get().value) = str; }
+    void stringBufferAddUtf8(uint32_t ch) override { StringBufferAddUtf8(std::get<std::string>(m_currentValue.get().value), ch); }
+    void stringBufferEnd() override {}
+
+    Error::Type pushObject() override
+    {
+      m_currentValue.get().value = IndependentValue::Map();
+      m_stack.push_back(m_currentValue);
+      std::get<std::string>(m_currentKey.value).clear();
+      m_currentValue = m_currentKey;
+      return Error::None;
+    }
+
+    Error::Type pushArray() override
+    {
+      m_currentValue.get().value = IndependentValue::Array();
+      m_stack.push_back(m_currentValue);
+      return Error::None;
+    }
+
+    Error::Type pop() override
+    {
+      m_currentValue = m_stack.back();
+      m_stack.pop_back();
+
+      return Error::None;
+    }
+
+    void addKey() override { m_currentValue = std::get<IndependentValue::Map>(m_stack.back().get().value).insert({std::move(std::get<std::string>(m_currentKey.value)), {}}).first->second; }
+    void addKeyedValue() override
+    {
+      std::get<std::string>(m_currentKey.value).clear();
+      m_currentValue = m_currentKey;
+    }
+
+    void beginArrayValue() override
+    {
+      auto& array = std::get<IndependentValue::Array>(m_stack.back().get().value);
+      array.push_back({});
+      m_currentValue = array.back();
+    }
+
+    void addArrayValue() override {}
+
+    bool isValidRoot() override
+    {
+      return std::get_if<IndependentValue::Map>(&m_currentValue.get().value) != nullptr || std::get_if<IndependentValue::Array>(&m_currentValue.get().value) != nullptr;
+    }
+
+  protected:
+    IndependentValue m_currentKey;
+    std::reference_wrapper<IndependentValue> m_currentValue;
+    std::vector<std::reference_wrapper<IndependentValue>> m_stack;
+  };
 } // namespace json5

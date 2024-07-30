@@ -88,6 +88,7 @@ namespace json5
     void WriteMap(Writer& w, const T& in);
     template <typename T>
     void WriteEnum(Writer& w, T in);
+    void WriteIndependentValue(Writer& w, const IndependentValue& in);
 
     //---------------------------------------------------------------------------------------------------------------------
     inline void Write(Writer& w, bool in) { w.writeBoolean(in); }
@@ -99,6 +100,12 @@ namespace json5
     //---------------------------------------------------------------------------------------------------------------------
     inline void Write(Writer& w, const char* in) { w.writeString(in); }
     inline void Write(Writer& w, const std::string& in) { w.writeString(in); }
+
+    //---------------------------------------------------------------------------------------------------------------------
+    inline void Write(Writer& w, const IndependentValue& in)
+    {
+      WriteIndependentValue(w, in);
+    }
 
     //---------------------------------------------------------------------------------------------------------------------
     template <typename T, typename A>
@@ -268,6 +275,19 @@ namespace json5
       }
     }
 
+    //---------------------------------------------------------------------------------------------------------------------
+    inline void WriteIndependentValue(Writer& w, const IndependentValue& in)
+    {
+      std::visit([&w](const auto& value) {
+        using T = std::decay_t<decltype(value)>;
+        if constexpr (std::is_same_v<T, std::monostate>)
+          w.writeNull();
+        else
+          Write(w, value);
+      },
+        in.value);
+    }
+
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
     /* Forward declarations */
@@ -279,6 +299,7 @@ namespace json5
     Error ReadMap(const json5::Value& in, T& out);
     template <typename T>
     Error ReadEnum(const json5::Value& in, T& out);
+    Error ReadIndependentValue(const json5::Value& in, IndependentValue& out);
 
     //---------------------------------------------------------------------------------------------------------------------
     inline Error Read(const json5::Value& in, bool& out)
@@ -321,6 +342,12 @@ namespace json5
 
       out = in.getCStr();
       return {Error::None};
+    }
+
+    //---------------------------------------------------------------------------------------------------------------------
+    inline Error Read(const json5::Value& in, IndependentValue& out)
+    {
+      return ReadIndependentValue(in, out);
     }
 
     //---------------------------------------------------------------------------------------------------------------------
@@ -554,6 +581,42 @@ namespace json5
       }
 
       return {Error::InvalidEnum};
+    }
+
+    //---------------------------------------------------------------------------------------------------------------------
+    inline Error ReadIndependentValue(const json5::Value& in, IndependentValue& out)
+    {
+      auto handle = [&in, &out](auto value) -> Error {
+        if (auto err = Read(in, value))
+          return err;
+
+        out.value = std::move(value);
+        return {Error::None};
+      };
+
+      if (in.isNull())
+      {
+        out.value = std::monostate();
+        return {Error::None};
+      }
+
+      if (in.isBoolean())
+        return handle(bool());
+
+      if (in.isNumber())
+        return handle(double());
+
+      if (in.isString())
+        return handle(string());
+
+      if (in.isArray())
+        return handle(IndependentValue::Array());
+
+      if (in.isObject())
+        return handle(IndependentValue::Map());
+
+      assert(!"Unknown JSON type");
+      return {Error::NumberExpected};
     }
 
   } // namespace detail

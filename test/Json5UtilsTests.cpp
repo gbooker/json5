@@ -207,3 +207,61 @@ TEST(Json5, DISABLED_Performance)
       break;
   }
 }
+
+/////////////////////////////////////////////////////////////////////////////////////////
+TEST(Json5, DISABLED_PerformanceOfIndependentValue)
+/// Performance test
+{
+  fs::path path = "twitter.json";
+  std::ifstream ifs(path.string());
+  std::string str((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
+
+  Stopwatch sw {"Parse twitter.json 100x"};
+
+  for (int i = 0; i < 100; ++i)
+  {
+    json5::IndependentValue value;
+    if (auto err = json5::FromString(str, value))
+      break;
+  }
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////
+TEST(Json5, Independent)
+{
+  json5::IndependentValue value;
+  string json = R"(
+    {
+      "bool": false,
+      "num": 435.243,
+      "str": "a string",
+      "arr": ["str", 8, false],
+      "obj": {
+        "a": "value"
+      }
+    }
+  )";
+  json5::Error error = json5::FromString(json, value);
+  EXPECT_EQ(error.type, json5::Error::None);
+
+  json5::IndependentValue expected = {json5::IndependentValue::Map {
+    {"bool", {false}},
+    {"num", {435.243}},
+    {"str", {"a string"}},
+    {"arr",
+      {json5::IndependentValue::Array {
+        {"str"s},
+        {8.0},
+        {false},
+      }}},
+    {"obj",
+      {json5::IndependentValue::Map {
+        {"a", {"value"}},
+      }}},
+  }};
+
+  EXPECT_EQ(value, expected);
+
+  string str = json5::ToString(value, StandardJsonWriteParams);
+  EXPECT_EQ(str, R"({"arr":["str",8,false],"bool":false,"num":435.243,"obj":{"a":"value"},"str":"a string"})");
+}
