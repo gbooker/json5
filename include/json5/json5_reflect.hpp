@@ -454,10 +454,16 @@ inline error read_tuple(const json5::object_view& obj, const char* names, std::t
 }
 
 //---------------------------------------------------------------------------------------------------------------------
-template <size_t Index = 0, typename Tuple>
-inline error read_named_tuple( const json5::object_view &obj, Tuple &t )
+template <size_t Index = 0, typename... Types>
+inline error read_named_tuple( const json5::object_view &obj, std::tuple<Types...> &t )
 {
-	return read_tuple( obj, std::get<Index>( t ), std::get < Index + 1 > ( t ) );
+	if (auto err = read_tuple( obj, std::get<Index>( t ), std::get < Index + 1 > ( t ) ) )
+		return err;
+
+	if constexpr (Index + 2 != sizeof...(Types) )
+		return read_named_tuple<Index + 2>(obj, t);
+
+	return {error::none};
 }
 
 //---------------------------------------------------------------------------------------------------------------------
