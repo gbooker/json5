@@ -88,6 +88,9 @@ inline std::string_view get_name_slice( const char *names, size_t index )
 
 /* Forward declarations */
 template <typename T> json5::value write( writer &w, const T &in );
+template <typename T> inline json5::value write_array( writer &w, const T *in, size_t numItems );
+template <typename T> inline json5::value write_map( writer &w, const T &in );
+template <typename T> inline json5::value write_enum( writer &w, T in );
 
 //---------------------------------------------------------------------------------------------------------------------
 inline json5::value write( writer &w, bool in ) { return json5::value( in ); }
@@ -97,18 +100,6 @@ inline json5::value write( writer &w, float in ) { return json5::value( double( 
 inline json5::value write( writer &w, double in ) { return json5::value( in ); }
 inline json5::value write( writer &w, const char *in ) { return w.new_string( in ); }
 inline json5::value write( writer &w, const std::string &in ) { return w.new_string( in ); }
-
-//---------------------------------------------------------------------------------------------------------------------
-template <typename T>
-inline json5::value write_array( writer &w, const T *in, size_t numItems )
-{
-	w.push_array();
-
-	for ( size_t i = 0; i < numItems; ++i )
-		w += write( w, in[i] );
-
-	return w.pop();
-}
 
 //---------------------------------------------------------------------------------------------------------------------
 template <typename T, typename A>
@@ -134,48 +125,11 @@ template <typename T, size_t N>
 inline json5::value write( writer &w, const std::array<T, N> &in ) { return write_array( w, in.data(), N ); }
 
 //---------------------------------------------------------------------------------------------------------------------
-template <typename T>
-inline json5::value write_map( writer &w, const T &in )
-{
-	w.push_object();
-
-	for ( const auto &kvp : in )
-		w[kvp.first] = write( w, kvp.second );
-
-	return w.pop();
-}
-
-//---------------------------------------------------------------------------------------------------------------------
 template <typename K, typename T, typename P, typename A>
 inline json5::value write( writer &w, const std::map<K, T, P, A> &in ) { return write_map( w, in ); }
 
 template <typename K, typename T, typename H, typename EQ, typename A>
 inline json5::value write( writer &w, const std::unordered_map<K, T, H, EQ, A> &in ) { return write_map( w, in ); }
-
-//---------------------------------------------------------------------------------------------------------------------
-template <typename T>
-inline json5::value write_enum( writer &w, T in )
-{
-	size_t index = 0;
-	const auto *names = enum_table<T>::names;
-	const auto *values = enum_table<T>::values;
-
-	while ( true )
-	{
-		auto name = get_name_slice( names, index );
-
-		// Underlying value fallback
-		if ( name.empty() )
-			return write( w, std::underlying_type_t<T>( in ) );
-
-		if ( in == values[index] )
-			return w.new_string( name );
-
-		++index;
-	}
-
-	return json5::value();
-}
 
 //---------------------------------------------------------------------------------------------------------------------
 template <typename Type>
@@ -230,10 +184,62 @@ inline json5::value write( writer &w, const T &in )
 	return w.pop();
 }
 
+//---------------------------------------------------------------------------------------------------------------------
+template <typename T>
+inline json5::value write_array( writer &w, const T *in, size_t numItems )
+{
+	w.push_array();
+
+	for ( size_t i = 0; i < numItems; ++i )
+		w += write( w, in[i] );
+
+	return w.pop();
+}
+
+//---------------------------------------------------------------------------------------------------------------------
+template <typename T>
+inline json5::value write_map( writer &w, const T &in )
+{
+	w.push_object();
+
+	for ( const auto &kvp : in )
+		w[kvp.first] = write( w, kvp.second );
+
+	return w.pop();
+}
+
+//---------------------------------------------------------------------------------------------------------------------
+template <typename T>
+inline json5::value write_enum( writer &w, T in )
+{
+	size_t index = 0;
+	const auto *names = enum_table<T>::names;
+	const auto *values = enum_table<T>::values;
+
+	while ( true )
+	{
+		auto name = get_name_slice( names, index );
+
+		// Underlying value fallback
+		if ( name.empty() )
+			return write( w, std::underlying_type_t<T>( in ) );
+
+		if ( in == values[index] )
+			return w.new_string( name );
+
+		++index;
+	}
+
+	return json5::value();
+}
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /* Forward declarations */
 template <typename T> error read( const json5::value &in, T &out );
+template <typename T> error read_array( const json5::value &in, T *out, size_t numItems );
+template <typename T> error read_map( const json5::value &in, T &out );
+template <typename T> error read_enum( const json5::value &in, T &out );
 
 //---------------------------------------------------------------------------------------------------------------------
 inline error read( const json5::value &in, bool &out )
@@ -279,24 +285,6 @@ inline error read( const json5::value &in, std::string &out )
 }
 
 //---------------------------------------------------------------------------------------------------------------------
-template <typename T>
-inline error read_array( const json5::value &in, T *out, size_t numItems )
-{
-	if ( !in.is_array() )
-		return { error::array_expected };
-
-	auto arr = json5::array_view( in );
-	if ( arr.size() != numItems )
-		return { error::wrong_array_size };
-
-	for ( size_t i = 0; i < numItems; ++i )
-		if ( auto err = read( arr[i], out[i] ) )
-			return err;
-
-	return { error::none };
-}
-
-//---------------------------------------------------------------------------------------------------------------------
 template <typename T, size_t N>
 inline error read( const json5::value &in, T( &out )[N] ) { return read_array( in, out, N ); }
 
@@ -323,69 +311,11 @@ inline error read( const json5::value &in, std::vector<T, A> &out )
 }
 
 //---------------------------------------------------------------------------------------------------------------------
-template <typename T>
-inline error read_map( const json5::value &in, T &out )
-{
-	if ( !in.is_object() && !in.is_null() )
-		return { error::object_expected };
-
-	std::pair<typename T::key_type, typename T::mapped_type> kvp;
-
-	out.clear();
-	for ( auto jsKV : json5::object_view( in ) )
-	{
-		kvp.first = jsKV.first;
-
-		if ( auto err = read( jsKV.second, kvp.second ) )
-			return err;
-
-		out.emplace( std::move( kvp ) );
-	}
-
-	return { error::none };
-}
-
-//---------------------------------------------------------------------------------------------------------------------
 template <typename K, typename T, typename P, typename A>
 inline error read( const json5::value &in, std::map<K, T, P, A> &out ) { return read_map( in, out ); }
 
 template <typename K, typename T, typename H, typename EQ, typename A>
 inline error read( const json5::value &in, std::unordered_map<K, T, H, EQ, A> &out ) { return read_map( in, out ); }
-
-//---------------------------------------------------------------------------------------------------------------------
-template <typename T>
-inline error read_enum( const json5::value &in, T &out )
-{
-	if ( !in.is_string() && !in.is_number() )
-		return { error::string_expected };
-
-	size_t index = 0;
-	const auto *names = enum_table<T>::names;
-	const auto *values = enum_table<T>::values;
-
-	while ( true )
-	{
-		auto name = get_name_slice( names, index );
-
-		if ( name.empty() )
-			break;
-
-		if ( in.is_string() && name == in.get_c_str() )
-		{
-			out = values[index];
-			return { error::none };
-		}
-		else if ( in.is_number() && in.get<int>() == int( values[index] ) )
-		{
-			out = values[index];
-			return { error::none };
-		}
-
-		++index;
-	}
-
-	return { error::invalid_enum };
-}
 
 //---------------------------------------------------------------------------------------------------------------------
 template <typename Type>
@@ -497,6 +427,82 @@ inline error read( const json5::array_view &arr, Head &out, Tail &... tail )
 		return read < Index + 1 > ( arr, tail... );
 
 	return { error::none };
+}
+
+//---------------------------------------------------------------------------------------------------------------------
+template <typename T>
+inline error read_array( const json5::value &in, T *out, size_t numItems )
+{
+	if ( !in.is_array() )
+		return { error::array_expected };
+
+	auto arr = json5::array_view( in );
+	if ( arr.size() != numItems )
+		return { error::wrong_array_size };
+
+	for ( size_t i = 0; i < numItems; ++i )
+		if ( auto err = read( arr[i], out[i] ) )
+			return err;
+
+	return { error::none };
+}
+
+//---------------------------------------------------------------------------------------------------------------------
+template <typename T>
+inline error read_map( const json5::value &in, T &out )
+{
+	if ( !in.is_object() && !in.is_null() )
+		return { error::object_expected };
+
+	std::pair<typename T::key_type, typename T::mapped_type> kvp;
+
+	out.clear();
+	for ( auto jsKV : json5::object_view( in ) )
+	{
+		kvp.first = jsKV.first;
+
+		if ( auto err = read( jsKV.second, kvp.second ) )
+			return err;
+
+		out.emplace( std::move( kvp ) );
+	}
+
+	return { error::none };
+}
+
+//---------------------------------------------------------------------------------------------------------------------
+template <typename T>
+inline error read_enum( const json5::value &in, T &out )
+{
+	if ( !in.is_string() && !in.is_number() )
+		return { error::string_expected };
+
+	size_t index = 0;
+	const auto *names = enum_table<T>::names;
+	const auto *values = enum_table<T>::values;
+
+	while ( true )
+	{
+		auto name = get_name_slice( names, index );
+
+		if ( name.empty() )
+			break;
+
+		if ( in.is_string() && name == in.get_c_str() )
+		{
+			out = values[index];
+			return { error::none };
+		}
+		else if ( in.is_number() && in.get<int>() == int( values[index] ) )
+		{
+			out = values[index];
+			return { error::none };
+		}
+
+		++index;
+	}
+
+	return { error::invalid_enum };
 }
 
 } // namespace detail
