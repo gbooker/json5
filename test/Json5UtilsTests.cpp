@@ -135,27 +135,175 @@ struct Bar : BarBase
 
 JSON5_CLASS_INHERIT(Bar, BarBase, age)
 
+struct Foo
+{
+  int x = 0;
+  float y = 0;
+  bool z = false;
+  std::string text;
+  std::vector<int> numbers;
+  std::map<std::string, Bar> barMap;
+
+  std::array<float, 3> position = {0.0f, 0.0f, 0.0f};
+
+  Bar bar;
+  // MyEnum e;
+
+  JSON5_MEMBERS(x, y, z, text, numbers, barMap, position, bar /*, e*/)
+  bool operator==(const Foo& o) const noexcept { return std::tie(x, y, z, text, numbers, barMap, position, bar /*, e*/) == std::tie(o.x, o.y, o.z, o.text, o.numbers, o.barMap, o.position, o.bar /*, o.e*/); }
+};
+
+/////////////////////////////////////////////////////////////////////////////////////////
+TEST(Json5, LowLevelReflection)
+{
+  {
+    int i;
+    json5::ReflectionBuilder builder(i);
+    json5::Error err = FromString("5", (json5::Builder&)builder);
+    EXPECT_FALSE(err);
+    EXPECT_EQ(i, 5);
+  }
+
+  {
+    unsigned long l;
+    json5::ReflectionBuilder builder(l);
+    json5::Error err = FromString("5555", (json5::Builder&)builder);
+    EXPECT_FALSE(err);
+    EXPECT_EQ(l, 5555);
+  }
+
+  {
+    long l;
+    json5::ReflectionBuilder builder(l);
+    json5::Error err = FromString("5555", (json5::Builder&)builder);
+    EXPECT_FALSE(err);
+    EXPECT_EQ(l, 5555);
+  }
+
+  {
+    unsigned long long l;
+    json5::ReflectionBuilder builder(l);
+    json5::Error err = FromString("5555", (json5::Builder&)builder);
+    EXPECT_FALSE(err);
+    EXPECT_EQ(l, 5555);
+  }
+
+  {
+    long long l;
+    json5::ReflectionBuilder builder(l);
+    json5::Error err = FromString("5555", (json5::Builder&)builder);
+    EXPECT_FALSE(err);
+    EXPECT_EQ(l, 5555);
+  }
+
+  {
+    double d;
+    json5::ReflectionBuilder builder(d);
+    json5::Error err = FromString("5.5", (json5::Builder&)builder);
+    EXPECT_FALSE(err);
+    EXPECT_EQ(d, 5.5);
+  }
+
+  {
+    string str;
+    json5::ReflectionBuilder builder(str);
+    json5::Error err = FromString("\"Hahaha\"", (json5::Builder&)builder);
+    EXPECT_FALSE(err);
+    EXPECT_EQ(str, "Hahaha");
+  }
+
+  {
+    vector<string> v;
+    json5::ReflectionBuilder builder(v);
+    json5::Error err = FromString("[\"Hahaha\",\"Hoho\"]", (json5::Builder&)builder);
+    EXPECT_FALSE(err);
+    vector<string> expected = {
+      "Hahaha",
+      "Hoho",
+    };
+    EXPECT_EQ(v, expected);
+  }
+
+  {
+    map<string, int> m;
+    json5::ReflectionBuilder builder(m);
+    json5::Error err = FromString("{\"Hahaha\":3,\"Hoho\":2}", (json5::Builder&)builder);
+    EXPECT_FALSE(err);
+    map<string, int> expected = {
+      {"Hahaha", 3},
+      {"Hoho", 2},
+    };
+    EXPECT_EQ(m, expected);
+  }
+
+  {
+    std::multimap<string, string, ASCIICaseInsensitiveComparator> m;
+    json5::ReflectionBuilder builder(m);
+    json5::Error err = FromString("{\"First\":[\"1\", \"2\"],\"Second\":[\"3\"]}", (json5::Builder&)builder);
+    EXPECT_FALSE(err);
+    std::multimap<string, string, ASCIICaseInsensitiveComparator> expected = {
+      {"First", "1"},
+      {"First", "2"},
+      {"Second", "3"},
+    };
+    EXPECT_EQ(m, expected);
+  }
+
+  // {
+  //   MyEnum e;
+  //   json5::ReflectionBuilder builder(e);
+  //   json5::Error err = FromString("\"Third\"", (json5::Builder&)builder);
+  //   EXPECT_FALSE(err);
+  //   EXPECT_EQ(e, MyEnum::Third);
+  // }
+
+  {
+    std::optional<int> o;
+    json5::ReflectionBuilder builder(o);
+    json5::Error err = FromString("5", (json5::Builder&)builder);
+    EXPECT_FALSE(err);
+    EXPECT_TRUE(o);
+    EXPECT_EQ(*o, 5);
+
+    err = json5::FromString("null", (json5::Builder&)builder);
+    EXPECT_FALSE(err);
+    EXPECT_FALSE(o.has_value());
+  }
+
+  {
+    Foo foo1 =
+      {
+        123,
+        456.0f,
+        true,
+        "Hello, world!",
+        {1, 2, 3, 4, 5},
+        {{"x", {{"a"}, 1}}, {"y", {{"b"}, 2}}, {"z", {{"c"}, 3}}},
+        {10.0f, 20.0f, 30.0f},
+        {{"Somebody Unknown"}, 500},
+        // MyEnum::Second,
+      };
+
+    auto str = json5::ToString(foo1);
+
+    Foo foo2;
+    json5::ReflectionBuilder builder(foo2);
+    json5::Error err = FromString(str, (json5::Builder&)builder);
+    EXPECT_FALSE(err);
+    EXPECT_EQ(foo1, foo2);
+  }
+}
+
+struct OptIvar
+{
+  std::optional<int> val;
+
+  JSON5_MEMBERS(val);
+};
+
 /////////////////////////////////////////////////////////////////////////////////////////
 TEST(Json5, Reflection)
 {
-  struct Foo
-  {
-    int x = 0;
-    float y = 0;
-    bool z = false;
-    std::string text;
-    std::vector<int> numbers;
-    std::map<std::string, Bar> barMap;
-
-    std::array<float, 3> position = {0.0f, 0.0f, 0.0f};
-
-    Bar bar;
-    // MyEnum e;
-
-    JSON5_MEMBERS(x, y, z, text, numbers, barMap, position, bar /*, e*/)
-    bool operator==(const Foo& o) const noexcept { return std::tie(x, y, z, text, numbers, barMap, position, bar /*, e*/) == std::tie(o.x, o.y, o.z, o.text, o.numbers, o.barMap, o.position, o.bar /*, o.e*/); }
-  };
-
   Foo foo1 =
     {
       123,
@@ -184,6 +332,82 @@ TEST(Json5, Reflection)
   json5::FromFile("Foo2.json5", foo3);
 
   EXPECT_EQ(foo1, foo3);
+
+  {
+    json5::IndependentValue indepententFoo;
+    json5::Error err = FromFile("Foo.json5", indepententFoo);
+    EXPECT_FALSE(err);
+
+    json5::IndependentValue expected = {json5::IndependentValue::Map {
+      {"x", {123.0}},
+      {"y", {456.0}},
+      {"z", {true}},
+      {"text", {"Hello, world!"}},
+      {"numbers",
+        {json5::IndependentValue::Array {
+          {1.0},
+          {2.0},
+          {3.0},
+          {4.0},
+          {5.0},
+        }}},
+      {"barMap",
+        {json5::IndependentValue::Map {
+          {"x",
+            {json5::IndependentValue::Map {
+              {"name", {"a"}},
+              {"age", {1.0}},
+            }}},
+          {"y",
+            {json5::IndependentValue::Map {
+              {"name", {"b"}},
+              {"age", {2.0}},
+            }}},
+          {"z",
+            {json5::IndependentValue::Map {
+              {"name", {"c"}},
+              {"age", {3.0}},
+            }}},
+        }}},
+      {"position",
+        {json5::IndependentValue::Array {
+          {10.0},
+          {20.0},
+          {30.0},
+        }}},
+      {"bar",
+        {{json5::IndependentValue::Map {
+          {"name", {"Somebody Unknown"}},
+          {"age", {500.0}},
+        }}}},
+      // {"e", {"Second"}},
+    }};
+    EXPECT_EQ(indepententFoo, expected);
+  }
+
+  {
+    OptIvar empty;
+    string emptyStr = json5::ToString(empty);
+    string emptyExpected = R"({
+}
+)";
+    EXPECT_EQ(emptyStr, emptyExpected);
+
+    OptIvar result;
+    json5::FromString(emptyStr, result);
+    EXPECT_FALSE(result.val.has_value());
+
+    OptIvar set = {42};
+    string setStr = json5::ToString(set);
+    string setExpected = R"({
+  val: 42
+}
+)";
+    EXPECT_EQ(setStr, setExpected);
+
+    json5::FromString(setStr, result);
+    EXPECT_EQ(result.val, 42);
+  }
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////
