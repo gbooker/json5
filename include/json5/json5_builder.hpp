@@ -52,41 +52,166 @@ namespace json5
   class Builder
   {
   public:
-    explicit Builder(Document& doc)
+    virtual Error::Type setValue(double number) = 0;
+    virtual Error::Type setValue(bool boolean) = 0;
+    virtual Error::Type setValue(std::nullptr_t) = 0;
+
+    virtual Error::Type setString() = 0;
+
+    virtual void stringBufferAdd(char ch) = 0;
+    virtual void stringBufferAdd(std::string_view str) = 0;
+    virtual void stringBufferAddUtf8(uint32_t ch) = 0;
+    virtual void stringBufferEnd() = 0;
+
+    virtual Error::Type pushObject() = 0;
+    virtual Error::Type pushArray() = 0;
+    virtual Error::Type pop() = 0;
+
+    virtual void addKey() = 0;
+    virtual void addKeyedValue() = 0;
+    virtual void beginArrayValue() = 0;
+    virtual void addArrayValue() = 0;
+
+    virtual bool isValidRoot() = 0;
+  };
+
+  class DocumentBuilder : public Builder
+  {
+  public:
+    explicit DocumentBuilder(Document& doc)
       : m_doc(doc)
     {}
 
-    Error::Type setValue(double number);
-    Error::Type setValue(bool boolean);
-    Error::Type setValue(std::nullptr_t);
+    Error::Type setValue(double number) override
+    {
+      m_currentValue = Value(number);
+      return Error::None;
+    }
 
-    Error::Type setString();
+    Error::Type setValue(bool boolean) override
+    {
+      m_currentValue = Value(boolean);
+      return Error::None;
+    }
 
-    void stringBufferAdd(char ch) { m_doc.m_strings.push_back(ch); }
-    void stringBufferAdd(std::string_view str);
-    void stringBufferAddUtf8(uint32_t ch);
-    void stringBufferEnd();
+    Error::Type setValue(std::nullptr_t) override
+    {
+      m_currentValue = Value(nullptr);
+      return Error::None;
+    }
 
-    Error::Type pushObject();
-    Error::Type pushArray();
-    Error::Type pop();
+    Error::Type setString() override
+    {
+      m_currentValue = Value(ValueType::String, m_doc.m_strings.size());
+      return Error::None;
+    }
 
-    void addKey();
-    void addKeyedValue();
-    void beginArrayValue() {}
-    void addArrayValue();
+    void stringBufferAdd(char ch) override { m_doc.m_strings.push_back(ch); }
+    void stringBufferAdd(std::string_view str) override
+    {
+      m_doc.m_strings += str;
+      m_doc.m_strings.push_back(0);
+    }
 
-    bool isValidRoot() const;
+    void stringBufferAddUtf8(uint32_t ch) override { StringBufferAddUtf8(m_doc.m_strings, ch); }
+    void stringBufferEnd() override { m_doc.m_strings.push_back(0); }
+
+    Error::Type pushObject() override
+    {
+      auto v = Value(ValueType::Object, nullptr);
+      m_stack.emplace_back(v);
+      m_counts.push_back(0);
+      return Error::None;
+    }
+
+    Error::Type pushArray() override
+    {
+      auto v = Value(ValueType::Array, nullptr);
+      m_stack.emplace_back(v);
+      m_counts.push_back(0);
+      return Error::None;
+    }
+
+    Error::Type pop() override
+    {
+      m_currentValue = m_stack.back();
+      auto count = m_counts.back();
+
+      m_currentValue.payload(m_doc.m_values.size());
+
+      m_doc.m_values.push_back(Value(double(count)));
+
+      auto startIndex = m_values.size() - count;
+      for (size_t i = startIndex, s = m_values.size(); i < s; ++i)
+        m_doc.m_values.push_back(m_values[i]);
+
+      m_values.resize(m_values.size() - count);
+
+      m_stack.pop_back();
+      m_counts.pop_back();
+
+      if (m_stack.empty())
+      {
+        m_doc.assignRoot(m_currentValue);
+        m_currentValue = m_doc;
+      }
+
+      return Error::None;
+    }
+
+    void addKey() override
+    {
+      m_values.push_back(m_currentValue);
+      m_counts.back()++;
+    }
+
+    void addKeyedValue() override
+    {
+      m_values.push_back(m_currentValue);
+      m_counts.back()++;
+    }
+
+    void beginArrayValue() override {}
+
+    void addArrayValue() override
+    {
+      m_values.push_back(m_currentValue);
+      m_counts.back()++;
+    }
+
+    bool isValidRoot() override
+    {
+      return m_doc.isObject() || m_doc.isArray();
+    }
 
     // Used by tests
     Value getCurrentValue() const noexcept { return m_currentValue; }
-    detail::StringOffset stringBufferOffset() const noexcept;
-    detail::StringOffset stringBufferAddByOffset(std::string_view str);
+    detail::StringOffset stringBufferOffset() const noexcept { return detail::StringOffset(m_doc.m_strings.size()); }
+    detail::StringOffset stringBufferAddByOffset(std::string_view str)
+    {
+      auto offset = stringBufferOffset();
+      m_doc.m_strings += str;
+      m_doc.m_strings.push_back(0);
+      return offset;
+    }
+
     Value newString(detail::StringOffset stringOffset) { return Value(ValueType::String, stringOffset); }
     Value newString(std::string_view str) { return newString(stringBufferAddByOffset(str)); }
 
-    Builder& operator+=(Value v);
-    Value& operator[](detail::StringOffset keyOffset);
+    Builder& operator+=(Value v)
+    {
+      m_values.push_back(v);
+      m_counts.back() += 1;
+      return *this;
+    }
+
+    Value& operator[](detail::StringOffset keyOffset)
+    {
+      m_values.push_back(newString(keyOffset));
+      m_counts.back() += 2;
+      return m_values.emplace_back();
+    }
+
     Value& operator[](std::string_view key) { return (*this)[stringBufferAddByOffset(key)]; }
 
   protected:
@@ -96,158 +221,4 @@ namespace json5
     std::vector<Value> m_values;
     std::vector<size_t> m_counts;
   };
-
-  ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-  //---------------------------------------------------------------------------------------------------------------------
-  inline Error::Type Builder::setValue(double number)
-  {
-    m_currentValue = Value(number);
-    return Error::None;
-  }
-
-  //---------------------------------------------------------------------------------------------------------------------
-  inline Error::Type Builder::setValue(bool boolean)
-  {
-    m_currentValue = Value(boolean);
-    return Error::None;
-  }
-
-  //---------------------------------------------------------------------------------------------------------------------
-  inline Error::Type Builder::setValue(std::nullptr_t)
-  {
-    m_currentValue = Value(nullptr);
-    return Error::None;
-  }
-
-  //---------------------------------------------------------------------------------------------------------------------
-  inline Error::Type Builder::setString()
-  {
-    m_currentValue = Value(ValueType::String, m_doc.m_strings.size());
-    return Error::None;
-  }
-
-  //---------------------------------------------------------------------------------------------------------------------
-  inline void Builder::stringBufferAdd(std::string_view str)
-  {
-    m_doc.m_strings += str;
-    m_doc.m_strings.push_back(0);
-  }
-
-  //---------------------------------------------------------------------------------------------------------------------
-  inline void Builder::stringBufferAddUtf8(uint32_t ch)
-  {
-    StringBufferAddUtf8(m_doc.m_strings, ch);
-  }
-
-  //---------------------------------------------------------------------------------------------------------------------
-  inline void Builder::stringBufferEnd()
-  {
-    m_doc.m_strings.push_back(0);
-  }
-
-  //---------------------------------------------------------------------------------------------------------------------
-  inline Error::Type Builder::pushObject()
-  {
-    auto v = Value(ValueType::Object, nullptr);
-    m_stack.emplace_back(v);
-    m_counts.push_back(0);
-    return Error::None;
-  }
-
-  //---------------------------------------------------------------------------------------------------------------------
-  inline Error::Type Builder::pushArray()
-  {
-    auto v = Value(ValueType::Array, nullptr);
-    m_stack.emplace_back(v);
-    m_counts.push_back(0);
-    return Error::None;
-  }
-
-  //---------------------------------------------------------------------------------------------------------------------
-  inline Error::Type Builder::pop()
-  {
-    m_currentValue = m_stack.back();
-    auto count = m_counts.back();
-
-    m_currentValue.payload(m_doc.m_values.size());
-
-    m_doc.m_values.push_back(Value(double(count)));
-
-    auto startIndex = m_values.size() - count;
-    for (size_t i = startIndex, s = m_values.size(); i < s; ++i)
-      m_doc.m_values.push_back(m_values[i]);
-
-    m_values.resize(m_values.size() - count);
-
-    m_stack.pop_back();
-    m_counts.pop_back();
-
-    if (m_stack.empty())
-    {
-      m_doc.assignRoot(m_currentValue);
-      m_currentValue = m_doc;
-    }
-
-    return Error::None;
-  }
-
-  //---------------------------------------------------------------------------------------------------------------------
-  inline void Builder::addKey()
-  {
-    m_values.push_back(m_currentValue);
-    m_counts.back()++;
-  }
-
-  //---------------------------------------------------------------------------------------------------------------------
-  inline void Builder::addKeyedValue()
-  {
-    m_values.push_back(m_currentValue);
-    m_counts.back()++;
-  }
-
-  //---------------------------------------------------------------------------------------------------------------------
-  inline void Builder::addArrayValue()
-  {
-    m_values.push_back(m_currentValue);
-    m_counts.back()++;
-  }
-
-  //---------------------------------------------------------------------------------------------------------------------
-  inline bool Builder::isValidRoot() const
-  {
-    return m_doc.isObject() || m_doc.isArray();
-   }
-
-  //---------------------------------------------------------------------------------------------------------------------
-  inline detail::StringOffset Builder::stringBufferOffset() const noexcept
-  {
-    return detail::StringOffset(m_doc.m_strings.size());
-  }
-
-  //---------------------------------------------------------------------------------------------------------------------
-  inline detail::StringOffset Builder::stringBufferAddByOffset(std::string_view str)
-  {
-    auto offset = stringBufferOffset();
-    m_doc.m_strings += str;
-    m_doc.m_strings.push_back(0);
-    return offset;
-  }
-
-  //---------------------------------------------------------------------------------------------------------------------
-  inline Builder& Builder::operator+=(Value v)
-  {
-    m_values.push_back(v);
-    m_counts.back() += 1;
-    return *this;
-  }
-
-  //---------------------------------------------------------------------------------------------------------------------
-  inline Value& Builder::operator[](detail::StringOffset keyOffset)
-  {
-    m_values.push_back(newString(keyOffset));
-    m_counts.back() += 2;
-    return m_values.emplace_back();
-  }
-
 } // namespace json5

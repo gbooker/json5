@@ -131,6 +131,7 @@ namespace json5
   /* Forward declarations */
   class Builder;
   class Document;
+  class DocumentBuilder;
   class Parser;
   class Value;
 

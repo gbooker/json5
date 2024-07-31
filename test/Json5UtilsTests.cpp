@@ -16,7 +16,7 @@ bool PrintError(const json5::Error& err)
 TEST(Json5, Build)
 {
   json5::Document doc;
-  json5::Builder b(doc);
+  json5::DocumentBuilder b(doc);
 
   b.pushObject();
   {

@@ -564,7 +564,7 @@ namespace json5
   template <typename T>
   inline void ToDocument(Document& doc, const T& in)
   {
-    Builder builder(doc);
+    DocumentBuilder builder(doc);
     detail::Write(builder, in);
   }
 

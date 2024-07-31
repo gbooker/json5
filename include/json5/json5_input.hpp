@@ -618,21 +618,21 @@ namespace json5
   //---------------------------------------------------------------------------------------------------------------------
   inline Error FromStream(std::istream& is, Document& doc)
   {
-    Builder builder(doc);
+    DocumentBuilder builder(doc);
     return FromStream(is, builder);
   }
 
   //---------------------------------------------------------------------------------------------------------------------
   inline Error FromString(std::string_view str, Document& doc)
   {
-    Builder builder(doc);
+    DocumentBuilder builder(doc);
     return FromString(str, builder);
   }
 
   //---------------------------------------------------------------------------------------------------------------------
   inline Error FromFile(std::string_view fileName, Document& doc)
   {
-    Builder builder(doc);
+    DocumentBuilder builder(doc);
     return FromFile(fileName, builder);
   }
 } // namespace json5

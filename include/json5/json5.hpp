@@ -148,7 +148,7 @@ namespace json5
     void payload(const void* p) noexcept { payload(reinterpret_cast<uint64_t>(p)); }
 
     friend Document;
-    friend Builder;
+    friend DocumentBuilder;
   };
 
   ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -193,7 +193,7 @@ namespace json5
     std::vector<Value> m_values;
 
     friend Value;
-    friend Builder;
+    friend DocumentBuilder;
   };
 
   ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
