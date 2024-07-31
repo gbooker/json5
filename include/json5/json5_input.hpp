@@ -9,22 +9,27 @@
 namespace json5
 {
 
-  // Parse json5::Document from stream
+  // Parse json5::Builder from stream
+  Error FromStream(std::istream& is, Builder& builder);
+
+  // Parse json5::Builder from string
+  Error FromString(std::string_view str, Builder& builder);
+
+  // Parse json5::Builder from file
+  Error FromFile(std::string_view fileName, Builder& builder);
+
+  // Parse json5::Document
   Error FromStream(std::istream& is, Document& doc);
-
-  // Parse json5::Document from string
   Error FromString(std::string_view str, Document& doc);
-
-  // Parse json5::Document from file
   Error FromFile(std::string_view fileName, Document& doc);
 
   ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  class Parser final : Builder
+  class Parser final
   {
   public:
-    Parser(Document& doc, detail::CharSource& chars)
-      : Builder(doc)
+    Parser(Builder& builder, detail::CharSource& chars)
+      : m_builder(builder)
       , m_chars(chars)
     {}
 
@@ -53,15 +58,16 @@ namespace json5
       LiteralNull
     };
 
-    Error parseValue(Value& result);
+    Error parseValue();
     Error parseObject();
     Error parseArray();
     Error peekNextToken(TokenType& result);
     Error parseNumber(double& result);
-    Error parseString(detail::StringOffset& result);
-    Error parseIdentifier(detail::StringOffset& result);
+    Error parseString();
+    Error parseIdentifier();
     Error parseLiteral(TokenType& result);
 
+    Builder& m_builder;
     detail::CharSource& m_chars;
   };
 
@@ -148,19 +154,17 @@ namespace json5
   //---------------------------------------------------------------------------------------------------------------------
   inline Error Parser::parse()
   {
-    reset();
-
-    if (auto err = parseValue(m_doc))
+    if (auto err = parseValue())
       return err;
 
-    if (!m_doc.isArray() && !m_doc.isObject())
+    if (!m_builder.isValidRoot())
       return makeError(Error::InvalidRoot);
 
     return {Error::None};
   }
 
   //---------------------------------------------------------------------------------------------------------------------
-  inline Error Parser::parseValue(Value& result)
+  inline Error Parser::parseValue()
   {
     TokenType tt = TokenType::Unknown;
     if (auto err = peekNextToken(tt))
@@ -171,16 +175,14 @@ namespace json5
     case TokenType::Number: {
       if (double number = 0.0; auto err = parseNumber(number))
         return err;
-      else
-        result = Value(number);
+      else if (Error::Type errType = m_builder.setValue(number))
+        return makeError(errType);
     }
     break;
 
     case TokenType::String: {
-      if (detail::StringOffset offset = 0; auto err = parseString(offset))
+      if (auto err = parseString())
         return err;
-      else
-        result = newString(offset);
     }
     break;
 
@@ -189,35 +191,45 @@ namespace json5
         return err;
       else
       {
+        Error::Type errType;
         if (lit == TokenType::LiteralTrue)
-          result = Value(true);
+          errType = m_builder.setValue(true);
         else if (lit == TokenType::LiteralFalse)
-          result = Value(false);
+          errType = m_builder.setValue(false);
         else if (lit == TokenType::LiteralNull)
-          result = Value(nullptr);
+          errType = m_builder.setValue(nullptr);
         else
           return makeError(Error::InvalidLiteral);
+
+        if (errType)
+          return makeError(errType);
       }
     }
     break;
 
     case TokenType::ObjectBegin: {
-      pushObject();
+      if (Error::Type errType = m_builder.pushObject())
+        return makeError(errType);
+
       {
         if (auto err = parseObject())
           return err;
       }
-      result = pop();
+      if (Error::Type errType = m_builder.pop())
+        return makeError(errType);
     }
     break;
 
     case TokenType::ArrayBegin: {
-      pushArray();
+      if (Error::Type errType = m_builder.pushArray())
+        return makeError(errType);
+
       {
         if (auto err = parseArray())
           return err;
       }
-      result = pop();
+      if (Error::Type errType = m_builder.pop())
+        return makeError(errType);
     }
     break;
 
@@ -240,17 +252,12 @@ namespace json5
       if (auto err = peekNextToken(tt))
         return err;
 
-      detail::StringOffset keyOffset;
-
       switch (tt)
       {
       case TokenType::Identifier:
       case TokenType::String: {
         if (expectComma)
           return makeError(Error::CommaExpected);
-
-        if (auto err = parseIdentifier(keyOffset))
-          return err;
       }
       break;
 
@@ -270,6 +277,9 @@ namespace json5
         return expectComma ? makeError(Error::CommaExpected) : makeError(Error::SyntaxError);
       }
 
+      if (auto err = parseIdentifier())
+        return err;
+
       if (auto err = peekNextToken(tt))
         return err;
 
@@ -278,11 +288,11 @@ namespace json5
 
       next(); // Consume ':'
 
-      Value newValue;
-      if (auto err = parseValue(newValue))
+      m_builder.addKey();
+      if (auto err = parseValue())
         return err;
 
-      (*this)[keyOffset] = newValue;
+      m_builder.addKeyedValue();
       expectComma = true;
     }
 
@@ -314,11 +324,11 @@ namespace json5
         continue;
       }
 
-      Value newValue;
-      if (auto err = parseValue(newValue))
+      m_builder.beginArrayValue();
+      if (auto err = parseValue())
         return err;
 
-      (*this) += newValue;
+      m_builder.addArrayValue();
       expectComma = true;
     }
 
@@ -436,14 +446,15 @@ namespace json5
   }
 
   //---------------------------------------------------------------------------------------------------------------------
-  inline Error Parser::parseString(detail::StringOffset& result)
+  inline Error Parser::parseString()
   {
     static const constexpr char* HexChars = "0123456789abcdefABCDEF";
 
     bool singleQuoted = peek() == '\'';
     next(); // Consume '\'' or '"'
 
-    result = stringBufferOffset();
+    if (Error::Type errType = m_builder.setString())
+      return makeError(errType);
 
     while (!eof())
     {
@@ -456,25 +467,25 @@ namespace json5
         if (ch == '\n' || ch == 'v' || ch == 'f')
           next();
         else if (ch == 't' && next())
-          stringBufferAdd('\t');
+          m_builder.stringBufferAdd('\t');
         else if (ch == 'n' && next())
-          stringBufferAdd('\n');
+          m_builder.stringBufferAdd('\n');
         else if (ch == 'r' && next())
-          stringBufferAdd('\r');
+          m_builder.stringBufferAdd('\r');
         else if (ch == 'b' && next())
-          stringBufferAdd('\b');
+          m_builder.stringBufferAdd('\b');
         else if (ch == '\\' && next())
-          stringBufferAdd('\\');
+          m_builder.stringBufferAdd('\\');
         else if (ch == '\'' && next())
-          stringBufferAdd('\'');
+          m_builder.stringBufferAdd('\'');
         else if (ch == '"' && next())
-          stringBufferAdd('"');
+          m_builder.stringBufferAdd('"');
         else if (ch == '\\' && next())
-          stringBufferAdd('\\');
+          m_builder.stringBufferAdd('\\');
         else if (ch == '/' && next())
-          stringBufferAdd('/');
+          m_builder.stringBufferAdd('/');
         else if (ch == '0' && next())
-          stringBufferAdd(0);
+          m_builder.stringBufferAdd(0);
         else if ((ch == 'x' || ch == 'u') && next())
         {
           char code[5] = {};
@@ -495,36 +506,37 @@ namespace json5
             return makeError(Error::InvalidEscapeSeq);
 #endif
 
-          stringBufferAddUtf8(uint32_t(unicodeChar));
+          m_builder.stringBufferAddUtf8(uint32_t(unicodeChar));
         }
         else
           return makeError(Error::InvalidEscapeSeq);
       }
       else
-        stringBufferAdd(next());
+        m_builder.stringBufferAdd(next());
     }
 
     if (eof())
       return makeError(Error::UnexpectedEnd);
 
-    stringBufferAdd(0);
+    m_builder.stringBufferEnd();
     return {Error::None};
   }
 
   //---------------------------------------------------------------------------------------------------------------------
-  inline Error Parser::parseIdentifier(detail::StringOffset& result)
+  inline Error Parser::parseIdentifier()
   {
-    result = stringBufferOffset();
-
     int firstCh = peek();
     bool isString = (firstCh == '\'') || (firstCh == '"');
 
+    if (Error::Type errType = m_builder.setString())
+      return makeError(errType);
+
     if (isString) // Use the string parsing function
-      return parseString(result);
+      return parseString();
 
     while (!eof())
     {
-      stringBufferAdd(next());
+      m_builder.stringBufferAdd(next());
 
       int ch = peek();
       if (!isalpha(ch) && !isdigit(ch) && ch != '_')
@@ -534,7 +546,7 @@ namespace json5
     if (isString && firstCh != next()) // Consume '\'' or '"'
       return makeError(Error::SyntaxError);
 
-    stringBufferAdd(0);
+    m_builder.stringBufferEnd();
     return {Error::None};
   }
 
@@ -577,30 +589,50 @@ namespace json5
   ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
   //---------------------------------------------------------------------------------------------------------------------
-  inline Error FromStream(std::istream& is, Document& doc)
+  inline Error FromStream(std::istream& is, Builder& builder)
   {
     detail::StlIstream src(is);
-    Parser r(doc, src);
+    Parser r(builder, src);
     return r.parse();
   }
 
   //---------------------------------------------------------------------------------------------------------------------
-  inline Error FromString(std::string_view str, Document& doc)
+  inline Error FromString(std::string_view str, Builder& builder)
   {
     detail::MemoryBlock src(str.data(), str.size());
-    Parser r(doc, src);
+    Parser r(builder, src);
     return r.parse();
   }
 
   //---------------------------------------------------------------------------------------------------------------------
-  inline Error FromFile(std::string_view fileName, Document& doc)
+  inline Error FromFile(std::string_view fileName, Builder& builder)
   {
     std::ifstream ifs(std::string(fileName).c_str());
     if (!ifs.is_open())
       return {Error::CouldNotOpen};
 
     auto str = std::string(std::istreambuf_iterator<char>(ifs), std::istreambuf_iterator<char>());
-    return FromString(std::string_view(str), doc);
+    return FromString(std::string_view(str), builder);
   }
 
+  //---------------------------------------------------------------------------------------------------------------------
+  inline Error FromStream(std::istream& is, Document& doc)
+  {
+    Builder builder(doc);
+    return FromStream(is, builder);
+  }
+
+  //---------------------------------------------------------------------------------------------------------------------
+  inline Error FromString(std::string_view str, Document& doc)
+  {
+    Builder builder(doc);
+    return FromString(str, builder);
+  }
+
+  //---------------------------------------------------------------------------------------------------------------------
+  inline Error FromFile(std::string_view fileName, Document& doc)
+  {
+    Builder builder(doc);
+    return FromFile(fileName, builder);
+  }
 } // namespace json5

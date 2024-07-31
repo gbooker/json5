@@ -8,6 +8,29 @@
 
 namespace json5
 {
+  class Writer
+  {
+  public:
+    virtual void writeNull() = 0;
+    virtual void writeBoolean(bool boolean) = 0;
+    virtual void writeNumber(double number) = 0;
+    virtual void writeString(const char* str) = 0;
+    virtual void writeString(std::string_view str) = 0;
+
+    virtual void beginArray() = 0;
+    virtual void beginArrayElement() = 0;
+    virtual void endArray() = 0;
+    virtual void writeEmptyArray() = 0;
+
+    virtual void beginObject() = 0;
+    virtual void beginObjectElement() = 0;
+    virtual void writeObjectKey(const char* str) = 0;
+    virtual void writeObjectKey(std::string_view str) = 0;
+    virtual void endObject() = 0;
+    virtual void writeEmptyObject() = 0;
+
+    virtual void complete() = 0;
+  };
 
   // Writes json5::document into stream
   void ToStream(std::ostream& os, const Document& doc, const WriterParams& wp = WriterParams());
@@ -23,175 +46,302 @@ namespace json5
 
   ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  //---------------------------------------------------------------------------------------------------------------------
-  inline void ToStream(std::ostream& os, const char* str, char quotes, bool escapeUnicode)
+  class Json5Writer : public Writer
   {
-    if (quotes)
-      os << quotes;
-
-    while (*str)
+  public:
+    Json5Writer(std::ostream& os, const WriterParams& wp)
+      : m_os(os)
+      , m_wp(wp)
     {
-      bool advance = true;
+      m_eol = wp.eol;
 
-      if (str[0] == '\n')
-        os << "\\n";
-      else if (str[0] == '\r')
-        os << "\\r";
-      else if (str[0] == '\t')
-        os << "\\t";
-      else if (str[0] == '"' && quotes == '"')
-        os << "\\\"";
-      else if (str[0] == '\'' && quotes == '\'')
-        os << "\\'";
-      else if (str[0] == '\\')
-        os << "\\\\";
-      else if (uint8_t(str[0]) >= 128 && escapeUnicode)
+      if (wp.compact)
       {
-        uint32_t ch = 0;
+        m_depth = -1;
+        m_kvSeparator = ":";
+        m_eol = "";
+      }
+    }
 
-        if ((*str & 0b1110'0000u) == 0b1100'0000u)
-        {
-          ch |= ((*str++) & 0b0001'1111u) << 6;
-          ch |= ((*str++) & 0b0011'1111u);
-        }
-        else if ((*str & 0b1111'0000u) == 0b1110'0000u)
-        {
-          ch |= ((*str++) & 0b0000'1111u) << 12;
-          ch |= ((*str++) & 0b0011'1111u) << 6;
-          ch |= ((*str++) & 0b0011'1111u);
-        }
-        else if ((*str & 0b1111'1000u) == 0b1111'0000u)
-        {
-          ch |= ((*str++) & 0b0000'0111u) << 18;
-          ch |= ((*str++) & 0b0011'1111u) << 12;
-          ch |= ((*str++) & 0b0011'1111u) << 6;
-          ch |= ((*str++) & 0b0011'1111u);
-        }
-        else if ((*str & 0b1111'1100u) == 0b1111'1000u)
-        {
-          ch |= ((*str++) & 0b0000'0011u) << 24;
-          ch |= ((*str++) & 0b0011'1111u) << 18;
-          ch |= ((*str++) & 0b0011'1111u) << 12;
-          ch |= ((*str++) & 0b0011'1111u) << 6;
-          ch |= ((*str++) & 0b0011'1111u);
-        }
-        else if ((*str & 0b1111'1110u) == 0b1111'1100u)
-        {
-          ch |= ((*str++) & 0b0000'0001u) << 30;
-          ch |= ((*str++) & 0b0011'1111u) << 24;
-          ch |= ((*str++) & 0b0011'1111u) << 18;
-          ch |= ((*str++) & 0b0011'1111u) << 12;
-          ch |= ((*str++) & 0b0011'1111u) << 6;
-          ch |= ((*str++) & 0b0011'1111u);
-        }
+    void writeNull() override { m_os << "null"; }
+    void writeBoolean(bool boolean) override { m_os << (boolean ? "true" : "false"); }
+    void writeNumber(double number) override
+    {
+      if (double _; modf(number, &_) == 0.0)
+        m_os << (int64_t)number;
+      else
+        m_os << number;
+    }
 
-        if (ch <= std::numeric_limits<uint16_t>::max())
+    void writeString(const char* str) override
+    {
+      writeString(str, std::numeric_limits<size_t>::max(), '"', m_wp.escapeUnicode);
+    }
+
+    void writeString(std::string_view str) override
+    {
+      writeString(str.data(), str.length(), '"', m_wp.escapeUnicode);
+    }
+
+    void writeString(const char* str, size_t len, char quotes, bool escapeUnicode)
+    {
+      if (quotes)
+        m_os << quotes;
+
+      auto iterate = [&len](char ch) -> bool {
+        if (len == std::numeric_limits<size_t>::max())
+          return ch;
+
+        return len-- > 0;
+      };
+
+      while (iterate(*str))
+      {
+        bool advance = true;
+
+        if (str[0] == '\n')
+          m_os << "\\n";
+        else if (str[0] == '\r')
+          m_os << "\\r";
+        else if (str[0] == '\t')
+          m_os << "\\t";
+        else if (str[0] == '"' && quotes == '"')
+          m_os << "\\\"";
+        else if (str[0] == '\'' && quotes == '\'')
+          m_os << "\\'";
+        else if (str[0] == '\\')
+          m_os << "\\\\";
+        else if (uint8_t(str[0]) >= 128 && escapeUnicode)
         {
-          os << "\\u" << std::hex << std::setfill('0') << std::setw(4) << ch;
+          uint32_t ch = 0;
+
+          if ((*str & 0b1110'0000u) == 0b1100'0000u)
+          {
+            ch |= ((*str++) & 0b0001'1111u) << 6;
+            ch |= ((*str++) & 0b0011'1111u);
+          }
+          else if ((*str & 0b1111'0000u) == 0b1110'0000u)
+          {
+            ch |= ((*str++) & 0b0000'1111u) << 12;
+            ch |= ((*str++) & 0b0011'1111u) << 6;
+            ch |= ((*str++) & 0b0011'1111u);
+          }
+          else if ((*str & 0b1111'1000u) == 0b1111'0000u)
+          {
+            ch |= ((*str++) & 0b0000'0111u) << 18;
+            ch |= ((*str++) & 0b0011'1111u) << 12;
+            ch |= ((*str++) & 0b0011'1111u) << 6;
+            ch |= ((*str++) & 0b0011'1111u);
+          }
+          else if ((*str & 0b1111'1100u) == 0b1111'1000u)
+          {
+            ch |= ((*str++) & 0b0000'0011u) << 24;
+            ch |= ((*str++) & 0b0011'1111u) << 18;
+            ch |= ((*str++) & 0b0011'1111u) << 12;
+            ch |= ((*str++) & 0b0011'1111u) << 6;
+            ch |= ((*str++) & 0b0011'1111u);
+          }
+          else if ((*str & 0b1111'1110u) == 0b1111'1100u)
+          {
+            ch |= ((*str++) & 0b0000'0001u) << 30;
+            ch |= ((*str++) & 0b0011'1111u) << 24;
+            ch |= ((*str++) & 0b0011'1111u) << 18;
+            ch |= ((*str++) & 0b0011'1111u) << 12;
+            ch |= ((*str++) & 0b0011'1111u) << 6;
+            ch |= ((*str++) & 0b0011'1111u);
+          }
+
+          if (ch <= std::numeric_limits<uint16_t>::max())
+          {
+            m_os << "\\u" << std::hex << std::setfill('0') << std::setw(4) << ch;
+          }
+          else
+            m_os << "?"; // JSON can't encode Unicode chars > 65535 (emojis)
+
+          advance = false;
         }
         else
-          os << "?"; // JSON can't encode Unicode chars > 65535 (emojis)
+          m_os << *str;
 
-        advance = false;
+        if (advance)
+          ++str;
+      }
+
+      if (quotes)
+        m_os << quotes;
+    }
+
+    void push()
+    {
+      m_firstElementStack.push_back(m_firstElement);
+      m_firstElement = true;
+      if (m_depth != -1)
+        m_depth++;
+    }
+
+    void pop()
+    {
+      m_firstElement = m_firstElementStack.back();
+      m_firstElementStack.pop_back();
+      if (m_depth != -1)
+        m_depth--;
+    }
+
+    void writeSeparatorAndIndent()
+    {
+      if (m_firstElement)
+        m_firstElement = false;
+      else
+        m_os << ",";
+
+      m_os << m_eol;
+      indent();
+    }
+
+    void indent()
+    {
+      for (int i = 0; i < m_depth; ++i) m_os << m_wp.indentation;
+    }
+
+    void beginArray() override
+    {
+      push();
+      m_os << "[";
+    }
+
+    void beginArrayElement() override { writeSeparatorAndIndent(); }
+
+    void endArray() override
+    {
+      m_os << m_eol;
+      pop();
+      indent();
+      m_os << "]";
+    }
+
+    void writeEmptyArray() override { m_os << "[]"; }
+
+    void beginObject() override
+    {
+      push();
+      m_os << "{";
+    }
+
+    void writeObjectKey(const char* str) override
+    {
+      writeObjectKey(str, std::numeric_limits<size_t>::max());
+    }
+
+    void writeObjectKey(std::string_view str) override
+    {
+      writeObjectKey(str.data(), str.length());
+    }
+
+    void writeObjectKey(const char* str, size_t len)
+    {
+      if (m_wp.jsonCompatible)
+      {
+        writeString(str, len, '"', m_wp.escapeUnicode);
+        m_os << m_kvSeparator;
+      }
+      else if (len != std::numeric_limits<size_t>::max())
+      {
+        m_os << std::string_view(str, len) << m_kvSeparator;
       }
       else
-        os << *str;
-
-      if (advance)
-        ++str;
+      {
+        m_os << str << m_kvSeparator;
+      }
     }
 
-    if (quotes)
-      os << quotes;
-  }
+    void endObject() override
+    {
+      m_os << m_eol;
+      pop();
+      indent();
+      m_os << "}";
+    }
+
+    void beginObjectElement() override { writeSeparatorAndIndent(); }
+    void writeEmptyObject() override { m_os << "{}"; }
+
+    void complete() override { m_os << m_eol; }
+
+  protected:
+    std::ostream& m_os;
+    const WriterParams& m_wp;
+
+    bool m_firstElement = false;
+    vector<bool> m_firstElementStack;
+    int m_depth = 0;
+    const char* m_kvSeparator = ": ";
+    const char* m_eol;
+  };
 
   //---------------------------------------------------------------------------------------------------------------------
-  inline void ToStream(std::ostream& os, const Value& v, const WriterParams& wp, int depth)
+  inline void Write(Writer& writer, const Value& v)
   {
-    const char* kvSeparator = ": ";
-    const char* eol = wp.eol;
-
-    if (wp.compact)
-    {
-      depth = -1;
-      kvSeparator = ":";
-      eol = "";
-    }
-
     if (v.isNull())
-      os << "null";
+    {
+      writer.writeNull();
+    }
     else if (v.isBoolean())
-      os << (v.getBool() ? "true" : "false");
+    {
+      writer.writeBoolean(v.getBool());
+    }
     else if (v.isNumber())
     {
-      if (double _, d = v.get<double>(); modf(d, &_) == 0.0)
-        os << v.get<int64_t>();
-      else
-        os << d;
+      writer.writeNumber(v.get<double>());
     }
     else if (v.isString())
     {
-      ToStream(os, v.getCStr(), '"', wp.escapeUnicode);
+      writer.writeString(v.getCStr());
     }
     else if (v.isArray())
     {
       if (auto av = json5::ArrayView(v); !av.empty())
       {
-        os << "[" << eol;
+        writer.beginArray();
         for (size_t i = 0, s = av.size(); i < s; ++i)
         {
-          for (int i = 0; i <= depth; ++i) os << wp.indentation;
-          ToStream(os, av[i], wp, depth + 1);
-          if (i < s - 1)
-            os << ",";
-          os << eol;
+          writer.beginArrayElement();
+          Write(writer, av[i]);
         }
 
-        for (int i = 0; i < depth; ++i) os << wp.indentation;
-        os << "]";
+        writer.endArray();
       }
       else
-        os << "[]";
+      {
+        writer.writeEmptyArray();
+      }
     }
     else if (v.isObject())
     {
       if (auto ov = json5::ObjectView(v); !ov.empty())
       {
-        os << "{" << eol;
-        size_t count = ov.size();
+        writer.beginObject();
         for (auto kvp : ov)
         {
-          for (int i = 0; i <= depth; ++i) os << wp.indentation;
-
-          if (wp.jsonCompatible)
-          {
-            ToStream(os, kvp.first, '"', wp.escapeUnicode);
-            os << kvSeparator;
-          }
-          else
-            os << kvp.first << kvSeparator;
-
-          ToStream(os, kvp.second, wp, depth + 1);
-          if (--count)
-            os << ",";
-          os << eol;
+          writer.beginObjectElement();
+          writer.writeObjectKey(kvp.first);
+          Write(writer, kvp.second);
         }
 
-        for (int i = 0; i < depth; ++i) os << wp.indentation;
-        os << "}";
+        writer.endObject();
       }
       else
-        os << "{}";
+      {
+        writer.writeEmptyObject();
+      }
     }
-
-    if (!depth)
-      os << eol;
   }
 
   //---------------------------------------------------------------------------------------------------------------------
   inline void ToStream(std::ostream& os, const Document& doc, const WriterParams& wp)
   {
-    ToStream(os, doc, wp, 0);
+    Json5Writer writer(os, wp);
+    Write(writer, doc);
+    writer.complete();
   }
 
   //---------------------------------------------------------------------------------------------------------------------

@@ -30,7 +30,8 @@ TEST(Json5, Build)
       b += b.newString("b");
       b += b.newString("c");
     }
-    b["arr"] = b.pop();
+    b.pop();
+    b["arr"] = b.getCurrentValue();
   }
   b.pop();
 

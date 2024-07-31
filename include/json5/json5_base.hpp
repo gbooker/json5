@@ -137,7 +137,7 @@ namespace json5
   //---------------------------------------------------------------------------------------------------------------------
   struct Error final
   {
-    enum
+    enum Type
     {
       None,             // no error
       InvalidRoot,      // document root is not an object or array

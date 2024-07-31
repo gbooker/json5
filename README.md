@@ -75,13 +75,9 @@ JSON5_CLASS(Triangle, a, b, c)
 namespace json5::detail {
 
 // Write Vec3 as JSON array of 3 numbers
-inline json5::value write(writer &w, const vec3 &in)
+inline void Write(writer &w, const vec3 &in)
 {
-  w.pushArray();
-  w += Write(w, in.x);
-  w += Write(w, in.y);
-  w += Write(w, in.z);
-  return w.pop();
+  Write(w, std::array<float, 3>{in.x, in.y, in.z});
 }
 
 // Read Vec3 from JSON array

@@ -6,13 +6,10 @@
 #include <unordered_map>
 
 #include "json5_builder.hpp"
+#include "json5_output.hpp"
 
 namespace json5
 {
-
-  //
-  template <typename T>
-  void ToDocument(Document& doc, const T& in, const WriterParams& wp = WriterParams());
 
   //
   template <typename T>
@@ -64,20 +61,6 @@ namespace json5
     template <typename T>
     Error Read(const json5::Value& in, T& out);
 
-    class Writer final : public Builder
-    {
-    public:
-      Writer(Document& doc, const WriterParams& wp)
-        : Builder(doc)
-        , m_params(wp)
-      {}
-
-      const WriterParams& params() const noexcept { return m_params; }
-
-    private:
-      WriterParams m_params;
-    };
-
     //---------------------------------------------------------------------------------------------------------------------
     inline std::string_view GetNameSlice(const char* names, size_t index)
     {
@@ -98,66 +81,70 @@ namespace json5
 
     /* Forward declarations */
     template <typename T>
-    json5::Value Write(Writer& w, const T& in);
+    void Write(Writer& w, const T& in);
     template <typename T>
-    json5::Value WriteArray(Writer& w, const T* in, size_t numItems);
+    void WriteArray(Writer& w, const T* in, size_t numItems);
     template <typename T>
-    json5::Value WriteMap(Writer& w, const T& in);
+    void WriteMap(Writer& w, const T& in);
     template <typename T>
-    json5::Value WriteEnum(Writer& w, T in);
+    void WriteEnum(Writer& w, T in);
 
     //---------------------------------------------------------------------------------------------------------------------
-    inline json5::Value Write(Writer& w, bool in) { return json5::Value(in); }
-    inline json5::Value Write(Writer& w, int in) { return json5::Value(double(in)); }
-    inline json5::Value Write(Writer& w, unsigned in) { return json5::Value(double(in)); }
-    inline json5::Value Write(Writer& w, float in) { return json5::Value(double(in)); }
-    inline json5::Value Write(Writer& w, double in) { return json5::Value(in); }
-    inline json5::Value Write(Writer& w, const char* in) { return w.newString(in); }
-    inline json5::Value Write(Writer& w, const std::string& in) { return w.newString(in); }
+    inline void Write(Writer& w, bool in) { w.writeBoolean(in); }
+    inline void Write(Writer& w, int in) { w.writeNumber(double(in)); }
+    inline void Write(Writer& w, unsigned in) { w.writeNumber(double(in)); }
+    inline void Write(Writer& w, float in) { w.writeNumber(double(in)); }
+    inline void Write(Writer& w, double in) { w.writeNumber(in); }
+
+    //---------------------------------------------------------------------------------------------------------------------
+    inline void Write(Writer& w, const char* in) { w.writeString(in); }
+    inline void Write(Writer& w, const std::string& in) { w.writeString(in); }
 
     //---------------------------------------------------------------------------------------------------------------------
     template <typename T, typename A>
-    inline json5::Value Write(Writer& w, const std::vector<T, A>& in)
+    inline void Write(Writer& w, const std::vector<T, A>& in)
     {
       return WriteArray(w, in.data(), in.size());
     }
 
     template <typename A>
-    inline json5::Value Write(Writer& w, const std::vector<bool, A>& in)
+    inline void Write(Writer& w, const std::vector<bool, A>& in)
     {
-      w.pushArray();
-
+      w.beginArray();
       for (size_t i = 0; i < in.size(); ++i)
-        w += Write(w, (bool)in[i]);
+      {
+        w.beginArrayElement();
+        Write(w, (bool)in[i]);
+      }
 
-      return w.pop();
+      w.endArray();
     }
 
     //---------------------------------------------------------------------------------------------------------------------
     template <typename T, size_t N>
-    inline json5::Value Write(Writer& w, const T (&in)[N])
+    inline void Write(Writer& w, const T (&in)[N])
     {
       return WriteArray(w, in, N);
     }
 
     //---------------------------------------------------------------------------------------------------------------------
     template <typename T, size_t N>
-    inline json5::Value Write(Writer& w, const std::array<T, N>& in)
+    inline void Write(Writer& w, const std::array<T, N>& in)
     {
       return WriteArray(w, in.data(), N);
     }
 
     //---------------------------------------------------------------------------------------------------------------------
     template <typename K, typename T, typename P, typename A>
-    inline json5::Value Write(Writer& w, const std::map<K, T, P, A>& in)
+    inline void Write(Writer& w, const std::map<K, T, P, A>& in)
     {
-      return WriteMap(w, in);
+      WriteMap(w, in);
     }
 
     template <typename K, typename T, typename H, typename EQ, typename A>
-    inline json5::Value Write(Writer& w, const std::unordered_map<K, T, H, EQ, A>& in)
+    inline void Write(Writer& w, const std::unordered_map<K, T, H, EQ, A>& in)
     {
-      return WriteMap(w, in);
+      WriteMap(w, in);
     }
 
     //---------------------------------------------------------------------------------------------------------------------
@@ -169,15 +156,23 @@ namespace json5
         if (in)
           WriteTupleValue<typename Type::value_type>(w, name, *in);
       }
-      else if constexpr (std::is_enum_v<Type>)
-      {
-        if constexpr (EnumTable<Type>())
-          w[name] = WriteEnum(w, in);
-        else
-          w[name] = Write(w, std::underlying_type_t<Type>(in));
-      }
       else
-        w[name] = Write(w, in);
+      {
+        w.beginObjectElement();
+        w.writeObjectKey(name);
+
+        if constexpr (std::is_enum_v<Type>)
+        {
+          if constexpr (EnumTable<Type>())
+            WriteEnum(w, in);
+          else
+            Write(w, std::underlying_type_t<Type>(in));
+        }
+        else
+        {
+          Write(w, in);
+        }
+      }
     }
 
     //---------------------------------------------------------------------------------------------------------------------
@@ -206,40 +201,47 @@ namespace json5
 
     //---------------------------------------------------------------------------------------------------------------------
     template <typename T>
-    inline json5::Value Write(Writer& w, const T& in)
+    inline void Write(Writer& w, const T& in)
     {
-      w.pushObject();
+      w.beginObject();
       WriteNamedTuple(w, ClassWrapper<T>::MakeNamedTuple(in));
-      return w.pop();
+      w.endObject();
     }
 
     //---------------------------------------------------------------------------------------------------------------------
     template <typename T>
-    inline json5::Value WriteArray(Writer& w, const T* in, size_t numItems)
+    inline void WriteArray(Writer& w, const T* in, size_t numItems)
     {
-      w.pushArray();
+      w.beginArray();
 
       for (size_t i = 0; i < numItems; ++i)
-        w += Write(w, in[i]);
+      {
+        w.beginArrayElement();
+        Write(w, in[i]);
+      }
 
-      return w.pop();
+      w.endArray();
     }
 
     //---------------------------------------------------------------------------------------------------------------------
     template <typename T>
-    inline json5::Value WriteMap(Writer& w, const T& in)
+    inline void WriteMap(Writer& w, const T& in)
     {
-      w.pushObject();
+      w.beginObject();
 
       for (const auto& kvp : in)
-        w[kvp.first] = Write(w, kvp.second);
+      {
+        w.beginObjectElement();
+        w.writeObjectKey(kvp.first);
+        Write(w, kvp.second);
+      }
 
-      return w.pop();
+      w.endObject();
     }
 
     //---------------------------------------------------------------------------------------------------------------------
     template <typename T>
-    inline json5::Value WriteEnum(Writer& w, T in)
+    inline void WriteEnum(Writer& w, T in)
     {
       size_t index = 0;
       const auto* names = EnumTable<T>::Names;
@@ -251,15 +253,19 @@ namespace json5
 
         // Underlying value fallback
         if (name.empty())
-          return Write(w, std::underlying_type_t<T>(in));
+        {
+          Write(w, std::underlying_type_t<T>(in));
+          return;
+        }
 
         if (in == values[index])
-          return w.newString(name);
+        {
+          w.writeString(name);
+          return;
+        }
 
         ++index;
       }
-
-      return json5::Value();
     }
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -556,28 +562,28 @@ namespace json5
 
   //---------------------------------------------------------------------------------------------------------------------
   template <typename T>
-  inline void ToDocument(Document& doc, const T& in, const WriterParams& wp)
+  inline void ToDocument(Document& doc, const T& in)
   {
-    detail::Writer w(doc, wp);
-    detail::Write(w, in);
+    Builder builder(doc);
+    detail::Write(builder, in);
   }
 
   //---------------------------------------------------------------------------------------------------------------------
   template <typename T>
   inline void ToStream(std::ostream& os, const T& in, const WriterParams& wp)
   {
-    Document doc;
-    ToDocument(doc, in, wp);
-    ToStream(os, doc, wp);
+    Json5Writer writer(os, wp);
+    detail::Write(writer, in);
+    writer.complete();
   }
 
   //---------------------------------------------------------------------------------------------------------------------
   template <typename T>
   inline void ToString(std::string& str, const T& in, const WriterParams& wp)
   {
-    Document doc;
-    ToDocument(doc, in);
-    ToString(str, doc, wp);
+    std::ostringstream os;
+    ToStream(os, in, wp);
+    str = os.str();
   }
 
   //---------------------------------------------------------------------------------------------------------------------
