@@ -13,6 +13,10 @@ namespace json5
 
   //
   template <typename T>
+  void ToDocument(Document& doc, const T& in);
+
+  //
+  template <typename T>
   void ToStream(std::ostream& os, const T& in, const WriterParams& wp = WriterParams());
 
   //
@@ -622,13 +626,128 @@ namespace json5
   } // namespace detail
 
   ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  class DocumentWriter : public Writer
+  {
+  public:
+    explicit DocumentWriter(Document& doc)
+      : m_builder(doc)
+    {}
+
+    void writeNull() override { m_builder.setValue(nullptr); }
+    void writeBoolean(bool boolean) override { m_builder.setValue(boolean); }
+    void writeNumber(double number) override { m_builder.setValue(number); }
+
+    void writeString(const char* str) override
+    {
+      m_builder.setString();
+      m_builder.stringBufferAdd(str);
+    }
+    void writeString(std::string_view str) override
+    {
+      m_builder.setString();
+      m_builder.stringBufferAdd(str);
+    }
+
+    void push()
+    {
+      m_firstElementStack.push_back(m_firstElement);
+      m_firstElement = true;
+    }
+
+    void pop()
+    {
+      m_firstElement = m_firstElementStack.back();
+      m_firstElementStack.pop_back();
+    }
+
+    void beginArray() override
+    {
+      push();
+      m_builder.pushArray();
+    }
+
+    void beginArrayElement() override
+    {
+      if (!m_firstElement)
+        m_builder.addArrayValue();
+      else
+        m_firstElement = false;
+    }
+
+    void endArray() override
+    {
+      if (!m_firstElement)
+        m_builder.addArrayValue();
+
+      pop();
+      m_builder.pop();
+    }
+
+    void writeEmptyArray() override
+    {
+      m_builder.pushArray();
+      m_builder.pop();
+    }
+
+    void beginObject() override
+    {
+      push();
+      m_builder.pushObject();
+    }
+
+    void writeObjectKey(const char* str) override
+    {
+      m_builder.setString();
+      m_builder.stringBufferAdd(str);
+      m_builder.addKey();
+    }
+
+    void writeObjectKey(std::string_view str) override
+    {
+      m_builder.setString();
+      m_builder.stringBufferAdd(str);
+      m_builder.addKey();
+    }
+
+    void beginObjectElement() override
+    {
+      if (!m_firstElement)
+        m_builder.addKeyedValue();
+      else
+        m_firstElement = false;
+    }
+
+    void endObject() override
+    {
+      if (!m_firstElement)
+        m_builder.addKeyedValue();
+
+      pop();
+      m_builder.pop();
+    }
+
+    void writeEmptyObject() override
+    {
+      m_builder.pushObject();
+      m_builder.pop();
+    }
+
+    void complete() override {}
+
+  protected:
+    bool m_firstElement = false;
+    vector<bool> m_firstElementStack;
+    DocumentBuilder m_builder;
+  };
+
+  ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
   //---------------------------------------------------------------------------------------------------------------------
   template <typename T>
   inline void ToDocument(Document& doc, const T& in)
   {
-    DocumentBuilder builder(doc);
-    detail::Write(builder, in);
+    DocumentWriter writer(doc);
+    detail::Write(writer, in);
   }
 
   //---------------------------------------------------------------------------------------------------------------------

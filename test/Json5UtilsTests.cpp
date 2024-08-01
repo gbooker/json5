@@ -175,6 +175,15 @@ TEST(Json5, Reflection)
   json5::FromFile("Foo.json5", foo2);
 
   EXPECT_EQ(foo1, foo2);
+
+  json5::Document doc;
+  json5::ToDocument(doc, foo1);
+  json5::ToFile("Foo2.json5", doc);
+
+  Foo foo3;
+  json5::FromFile("Foo2.json5", foo3);
+
+  EXPECT_EQ(foo1, foo3);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////
