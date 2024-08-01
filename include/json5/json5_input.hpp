@@ -459,7 +459,7 @@ namespace json5
     while (!eof())
     {
       int ch = peek();
-      if (((singleQuoted && ch == '\'') || (!singleQuoted && ch == '"')) && next()) // Consume '\'' or '"'
+      if (((singleQuoted && ch == '\'') || (!singleQuoted && ch == '"')))
         break;
       else if (ch == '\\' && next()) // Consume '\\'
       {
@@ -517,6 +517,8 @@ namespace json5
 
     if (eof())
       return makeError(Error::UnexpectedEnd);
+
+    next(); // Consume '\'' or '"'
 
     m_builder.stringBufferEnd();
     return {Error::None};
