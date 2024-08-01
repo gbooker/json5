@@ -1260,33 +1260,110 @@ namespace json5
 
   ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+  class DocumentParser final
+  {
+  public:
+    DocumentParser(Builder& builder, const Document& doc)
+      : m_builder(builder)
+      , m_doc(doc)
+    {}
+
+    Error parse()
+    {
+      return parseValue(m_doc);
+    }
+
+    Error parseValue(const Value& v)
+    {
+      if (v.isNumber())
+        return {m_builder.setValue(v.get<double>())};
+      if (v.isBoolean())
+        return {m_builder.setValue(v.getBool())};
+      if (v.isNull())
+        return {m_builder.setValue(nullptr)};
+
+      if (v.isString())
+      {
+        if (Error::Type err = m_builder.setString())
+          return {err};
+
+        m_builder.stringBufferAdd(v.getCStr());
+        m_builder.stringBufferEnd();
+        return {Error::None};
+      }
+
+      if (v.isObject())
+      {
+        if (Error::Type err = m_builder.pushObject())
+          return {err};
+
+        for (auto kvp : ObjectView(v))
+        {
+          if (Error::Type err = m_builder.setString())
+            return {err};
+
+          m_builder.stringBufferAdd(kvp.first);
+          m_builder.stringBufferEnd();
+          m_builder.addKey();
+
+          if (Error err = parseValue(kvp.second))
+            return err;
+
+          m_builder.addKeyedValue();
+        }
+
+        return {m_builder.pop()};
+      }
+
+      if (v.isArray())
+      {
+        if (Error::Type err = m_builder.pushArray())
+          return {err};
+
+        for (auto inner : ArrayView(v))
+        {
+          if (Error err = parseValue(inner))
+            return err;
+
+          m_builder.addArrayValue();
+        }
+
+        return {m_builder.pop()};
+      }
+
+      return {Error::SyntaxError};
+    }
+
+  protected:
+    Builder& m_builder;
+    const Document& m_doc;
+  };
+
+  ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
   //---------------------------------------------------------------------------------------------------------------------
   template <typename T>
   inline Error FromDocument(const Document& doc, T& out)
   {
-    return detail::Read(doc, out);
+    ReflectionBuilder builder(out);
+    DocumentParser p(builder, doc);
+    return p.parse();
   }
 
   //---------------------------------------------------------------------------------------------------------------------
   template <typename T>
   inline Error FromString(std::string_view str, T& out)
   {
-    Document doc;
-    if (auto err = FromString(str, doc))
-      return err;
-
-    return FromDocument(doc, out);
+    ReflectionBuilder builder(out);
+    return FromString(str, (Builder&)builder);
   }
 
   //---------------------------------------------------------------------------------------------------------------------
   template <typename T>
   inline Error FromFile(std::string_view fileName, T& out)
   {
-    Document doc;
-    if (auto err = FromFile(fileName, doc))
-      return err;
-
-    return FromDocument(doc, out);
+    ReflectionBuilder builder(out);
+    return FromFile(fileName, (Builder&)builder);
   }
 
 } // namespace json5
