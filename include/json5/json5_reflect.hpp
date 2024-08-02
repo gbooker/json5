@@ -48,19 +48,6 @@ namespace json5
   namespace detail
   {
 
-    template <typename T>
-    struct is_optional : public std::false_type // NOLINT(readability-identifier-naming)
-    {
-    };
-
-    template <typename T>
-    struct is_optional<std::optional<T>> : public std::true_type
-    {
-    };
-
-    template <typename T>
-    constexpr static bool is_optional_v = is_optional<T>::value; // NOLINT(readability-identifier-naming)
-
     struct WrapperHelper
     {
       // Several constexpr functions which will not actually be compiled because they only compute constants in the ClassWrapper below
@@ -259,28 +246,28 @@ namespace json5
     template <typename Type>
     inline void WriteTupleValue(Writer& w, std::string_view name, const Type& in)
     {
-      if constexpr (is_optional_v<Type>)
+      w.beginObjectElement();
+      w.writeObjectKey(name);
+
+      if constexpr (std::is_enum_v<Type>)
       {
-        if (in)
-          WriteTupleValue<typename Type::value_type>(w, name, *in);
+        if constexpr (EnumTable<Type>())
+          WriteEnum(w, in);
+        else
+          Write(w, std::underlying_type_t<Type>(in));
       }
       else
       {
-        w.beginObjectElement();
-        w.writeObjectKey(name);
-
-        if constexpr (std::is_enum_v<Type>)
-        {
-          if constexpr (EnumTable<Type>())
-            WriteEnum(w, in);
-          else
-            Write(w, std::underlying_type_t<Type>(in));
-        }
-        else
-        {
-          Write(w, in);
-        }
+        Write(w, in);
       }
+    }
+
+    //---------------------------------------------------------------------------------------------------------------------
+    template <typename Type>
+    inline void WriteTupleValue(Writer& w, std::string_view name, const std::optional<typename Type::value_type>& in)
+    {
+      if (in)
+        WriteTupleValue<typename Type::value_type>(w, name, *in);
     }
 
     //---------------------------------------------------------------------------------------------------------------------
