@@ -2,6 +2,25 @@
 
 #include <tuple>
 
+#define JSON5_CLASS_BASE(_Name, _Base, ...)                             \
+  template <>                                                           \
+  struct json5::detail::Json5Access<_Name>                              \
+  {                                                                     \
+    using SuperCls = _Base;                                             \
+    constexpr static auto GetNames() noexcept                           \
+    {                                                                   \
+      return #__VA_ARGS__;                                              \
+    }                                                                   \
+    constexpr static auto GetTie(_Name& out) noexcept                   \
+    {                                                                   \
+      return std::tie(_JSON5_CONCAT(_JSON5_PREFIX_OUT, (__VA_ARGS__))); \
+    }                                                                   \
+    constexpr static auto GetTie(const _Name& in) noexcept              \
+    {                                                                   \
+      return std::tie(_JSON5_CONCAT(_JSON5_PREFIX_IN, (__VA_ARGS__)));  \
+    }                                                                   \
+  };
+
 /*
   Generates class serialization helper for specified type:
 
@@ -11,20 +30,8 @@
 
   JSON5_CLASS(foo::Bar, x, y, z)
 */
-#define JSON5_CLASS(_Name, ...)                                                            \
-  template <>                                                                              \
-  struct json5::detail::ClassWrapper<_Name>                                                \
-  {                                                                                        \
-    static constexpr const char* names = #__VA_ARGS__;                                     \
-    inline static auto MakeNamedTuple(_Name& out) noexcept                                 \
-    {                                                                                      \
-      return std::tuple(names, std::tie(_JSON5_CONCAT(_JSON5_PREFIX_OUT, (__VA_ARGS__)))); \
-    }                                                                                      \
-    inline static auto MakeNamedTuple(const _Name& in) noexcept                            \
-    {                                                                                      \
-      return std::tuple(names, std::tie(_JSON5_CONCAT(_JSON5_PREFIX_IN, (__VA_ARGS__))));  \
-    }                                                                                      \
-  };
+#define JSON5_CLASS(_Name, ...) \
+  JSON5_CLASS_BASE(_Name, std::false_type, __VA_ARGS__)
 
 /*
   Generates class serialization helper for specified type with inheritance:
@@ -37,24 +44,24 @@
   JSON5_CLASS(foo::Base, name)
   JSON5_CLASS_INHERIT(foo::Bar, foo::Base, x, y, z)
 */
-#define JSON5_CLASS_INHERIT(_Name, _Base, ...)                                         \
-  template <>                                                                          \
-  struct json5::detail::ClassWrapper<_Name>                                            \
-  {                                                                                    \
-    static constexpr const char* names = #__VA_ARGS__;                                 \
-    inline static auto MakeNamedTuple(_Name& out) noexcept                             \
-    {                                                                                  \
-      return std::tuple_cat(                                                           \
-        json5::detail::ClassWrapper<_Base>::MakeNamedTuple(out),                       \
-        std::tuple(names, std::tie(_JSON5_CONCAT(_JSON5_PREFIX_OUT, (__VA_ARGS__))))); \
-    }                                                                                  \
-    inline static auto MakeNamedTuple(const _Name& in) noexcept                        \
-    {                                                                                  \
-      return std::tuple_cat(                                                           \
-        json5::detail::ClassWrapper<_Base>::MakeNamedTuple(in),                        \
-        std::tuple(names, std::tie(_JSON5_CONCAT(_JSON5_PREFIX_IN, (__VA_ARGS__)))));  \
-    }                                                                                  \
-  };
+#define JSON5_CLASS_INHERIT(_Name, _Base, ...) \
+  JSON5_CLASS_BASE(_Name, _Base, __VA_ARGS__)
+
+/////////////////////////////////////////////////////////////
+
+#define JSON5_MEMBERS_BASE(...)                              \
+  static constexpr std::string_view GetJson5Names() noexcept \
+  {                                                          \
+    return #__VA_ARGS__;                                     \
+  }                                                          \
+  constexpr auto getJson5Tie() noexcept                      \
+  {                                                          \
+    return std::tie(__VA_ARGS__);                            \
+  }                                                          \
+  constexpr auto getJson5Tie() const noexcept                \
+  {                                                          \
+    return std::tie(__VA_ARGS__);                            \
+  }
 
 /*
   Generates members serialization helper inside class:
@@ -66,15 +73,9 @@
     };
   }
 */
-#define JSON5_MEMBERS(...)                                               \
-  inline auto makeNamedTuple() noexcept                                  \
-  {                                                                      \
-    return std::tuple((const char*)#__VA_ARGS__, std::tie(__VA_ARGS__)); \
-  }                                                                      \
-  inline auto makeNamedTuple() const noexcept                            \
-  {                                                                      \
-    return std::tuple((const char*)#__VA_ARGS__, std::tie(__VA_ARGS__)); \
-  }
+#define JSON5_MEMBERS(...)        \
+  JSON5_MEMBERS_BASE(__VA_ARGS__) \
+  using Json5SuperClass = std::false_type;
 
 /*
   Generates members serialzation helper inside class with inheritance:
@@ -91,19 +92,9 @@
     };
   }
 */
-#define JSON5_MEMBERS_INHERIT(_Base, ...)                            \
-  inline auto makeNamedTuple() noexcept                              \
-  {                                                                  \
-    return std::tuple_cat(                                           \
-      json5::detail::ClassWrapper<_Base>::MakeNamedTuple(*this),     \
-      std::tuple((const char*)#__VA_ARGS__, std::tie(__VA_ARGS__))); \
-  }                                                                  \
-  inline auto makeNamedTuple() const noexcept                        \
-  {                                                                  \
-    return std::tuple_cat(                                           \
-      json5::detail::ClassWrapper<_Base>::MakeNamedTuple(*this),     \
-      std::tuple((const char*)#__VA_ARGS__, std::tie(__VA_ARGS__))); \
-  }
+#define JSON5_MEMBERS_INHERIT(_Base, ...) \
+  JSON5_MEMBERS_BASE(__VA_ARGS__)         \
+  using Json5SuperClass = _Base;
 
 /*
   Generates enum wrapper:
@@ -228,10 +219,12 @@ namespace json5::detail
   using StringOffset = unsigned;
 
   template <typename T>
-  struct ClassWrapper
+  struct Json5Access
   {
-    inline static auto MakeNamedTuple(T& in) noexcept { return in.makeNamedTuple(); }
-    inline static auto MakeNamedTuple(const T& in) noexcept { return in.makeNamedTuple(); }
+    using SuperCls = typename T::Json5SuperClass;
+    constexpr static auto GetNames() noexcept { return T::GetJson5Names(); }
+    constexpr static auto GetTie(T& out) noexcept { return out.getJson5Tie(); }
+    constexpr static auto GetTie(const T& in) noexcept { return in.getJson5Tie(); }
   };
 
   template <typename T>

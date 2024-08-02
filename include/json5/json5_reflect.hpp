@@ -61,23 +61,124 @@ namespace json5
     template <typename T>
     constexpr static bool is_optional_v = is_optional<T>::value; // NOLINT(readability-identifier-naming)
 
-    //---------------------------------------------------------------------------------------------------------------------
-    inline std::string_view GetNameSlice(const char* names, size_t index)
+    struct WrapperHelper
     {
-      size_t numCommas = index;
-      while (numCommas > 0 && *names)
-        if (*names++ == ',')
-          --numCommas;
+      // Several constexpr functions which will not actually be compiled because they only compute constants in the ClassWrapper below
+      static constexpr size_t CommaCount(std::string_view str)
+      {
+        size_t count = 0;
+        for (char ch : str)
+        {
+          if (ch == ',')
+            count++;
+        }
 
-      while (*names && *names <= 32)
-        ++names;
+        return count;
+      }
 
-      size_t length = 0;
-      while (names[length] > 32 && names[length] != ',')
-        ++length;
+      template <size_t Count>
+      static constexpr std::array<size_t, Count> GetCommas(std::string_view str)
+      {
+        if constexpr (Count == 0)
+        {
+          return std::array<size_t, 0>();
+        }
+        else
+        {
+          std::array<size_t, Count> ret;
+          size_t index = 0;
+          size_t pos = 0;
+          for (char ch : str)
+          {
+            if (ch == ',')
+            {
+              ret[index] = pos;
+              index++;
+            }
 
-      return std::string_view(names, length);
-    }
+            pos++;
+          }
+
+          return ret;
+        }
+      }
+
+      template <size_t N, size_t Count>
+      static constexpr std::string_view GetName(const std::array<size_t, Count - 1>& commas, std::string_view namesStr)
+      {
+        static_assert(N < Count);
+        if constexpr (N == 0)
+        {
+          if constexpr (Count != 1)
+            return namesStr.substr(0, commas[0]);
+
+          return namesStr;
+        }
+        else
+        {
+          size_t start = commas[N - 1];
+
+          // Advance past comma and whitespace
+          do {
+            start++;
+          } while (namesStr[start] <= 32);
+
+          if constexpr (N != Count - 1)
+            return namesStr.substr(start, commas[N] - start);
+
+          return namesStr.substr(start);
+        }
+      }
+
+      template <size_t N, size_t Count>
+      static constexpr void FillNames(std::array<std::string_view, Count>& ret, const std::array<size_t, Count - 1>& commas, std::string_view namesStr)
+      {
+        ret[N] = GetName<N, Count>(commas, namesStr);
+        if constexpr (N < Count - 1)
+          FillNames<N + 1, Count>(ret, commas, namesStr);
+      }
+
+      template <size_t Count>
+      static constexpr std::array<std::string_view, Count> GetNames(const std::array<size_t, Count - 1>& commas, std::string_view namesStr)
+      {
+        static_assert(Count > 0);
+        std::array<std::string_view, Count> ret;
+        if constexpr (Count == 1)
+          ret[0] = namesStr;
+        else
+          FillNames<0, Count>(ret, commas, namesStr);
+
+        return ret;
+      }
+    };
+
+    template <typename T>
+    class ClassWrapper : public Json5Access<T>
+    {
+    public:
+      // Constants for use in actual compiled functions
+      static constexpr std::string_view NamesStr = Json5Access<T>::GetNames();
+      static constexpr size_t NameCount = WrapperHelper::CommaCount(NamesStr) + 1;
+      static constexpr std::array<size_t, NameCount - 1> Commas = WrapperHelper::GetCommas<NameCount - 1>(NamesStr);
+      static constexpr std::array<std::string_view, NameCount> Names = WrapperHelper::GetNames<NameCount>(Commas, NamesStr);
+
+      // Some sanity checks
+      static_assert(NameCount == std::tuple_size_v<decltype(Json5Access<T>::GetTie(std::declval<T&>()))>);
+      static_assert(NameCount == std::tuple_size_v<decltype(Json5Access<T>::GetTie(std::declval<const T&>()))>);
+    };
+
+    template <typename T>
+    class EnumWrapper : public EnumTable<T>
+    {
+    public:
+      // Constants for use in actual compiled functions
+      static constexpr size_t NameCount = WrapperHelper::CommaCount(EnumTable<T>::Names) + 1;
+      static constexpr std::array<size_t, NameCount - 1> Commas = WrapperHelper::GetCommas<NameCount - 1>(EnumTable<T>::Names);
+      static constexpr std::array<std::string_view, NameCount> Names = WrapperHelper::GetNames<NameCount>(Commas, EnumTable<T>::Names);
+
+      // Sanity check
+      static_assert(NameCount == std::size(EnumTable<T>::Values));
+    };
 
     /* Forward declarations */
     template <typename T>
@@ -183,27 +284,25 @@ namespace json5
     }
 
     //---------------------------------------------------------------------------------------------------------------------
-    template <size_t Index = 0, typename... Types>
-    inline void WriteTuple(Writer& w, const char* names, const std::tuple<Types...>& t)
+    template <typename T, size_t Index = 0, typename... Types>
+    inline void WriteTuple(Writer& w, const std::tuple<Types...>& t)
     {
       const auto& in = std::get<Index>(t);
       using Type = std::remove_const_t<std::remove_reference_t<decltype(in)>>;
 
-      if (auto name = GetNameSlice(names, Index); !name.empty())
-        WriteTupleValue<Type>(w, name, in);
-
+      WriteTupleValue<Type>(w, ClassWrapper<T>::Names[Index], in);
       if constexpr (Index + 1 != sizeof...(Types))
-        WriteTuple<Index + 1>(w, names, t);
+        WriteTuple<T, Index + 1>(w, t);
     }
 
     //---------------------------------------------------------------------------------------------------------------------
-    template <size_t Index = 0, typename... Types>
-    inline void WriteNamedTuple(Writer& w, const std::tuple<Types...>& t)
+    template <typename T>
+    inline void WriteObjTuples(Writer& w, const T& in)
     {
-      WriteTuple(w, std::get<Index>(t), std::get<Index + 1>(t));
+      WriteTuple<T>(w, ClassWrapper<T>::GetTie(in));
 
-      if constexpr (Index + 2 != sizeof...(Types))
-        WriteNamedTuple<Index + 2>(w, t);
+      if constexpr (!std::is_same_v<typename Json5Access<T>::SuperCls, std::false_type>)
+        WriteObjTuples<typename Json5Access<T>::SuperCls>(w, in);
     }
 
     //---------------------------------------------------------------------------------------------------------------------
@@ -211,7 +310,7 @@ namespace json5
     inline void Write(Writer& w, const T& in)
     {
       w.beginObject();
-      WriteNamedTuple(w, ClassWrapper<T>::MakeNamedTuple(in));
+      WriteObjTuples(w, in);
       w.endObject();
     }
 
@@ -247,32 +346,27 @@ namespace json5
     }
 
     //---------------------------------------------------------------------------------------------------------------------
+    template <typename T, size_t Index = 0>
+    inline bool WriteEnumValue(Writer& w, T in)
+    {
+      if (in == EnumTable<T>::Values[Index])
+      {
+        w.writeString(EnumWrapper<T>::Names[Index]);
+        return true;
+      }
+
+      if constexpr (Index + 1 != std::size(EnumTable<T>::Values))
+        return WriteEnumValue<T, Index + 1>(w, in);
+
+      return false;
+    }
+
+    //---------------------------------------------------------------------------------------------------------------------
     template <typename T>
     inline void WriteEnum(Writer& w, T in)
     {
-      size_t index = 0;
-      const auto* names = EnumTable<T>::Names;
-      const auto* values = EnumTable<T>::Values;
-
-      while (true)
-      {
-        auto name = GetNameSlice(names, index);
-
-        // Underlying value fallback
-        if (name.empty())
-        {
-          Write(w, std::underlying_type_t<T>(in));
-          return;
-        }
-
-        if (in == values[index])
-        {
-          w.writeString(name);
-          return;
-        }
-
-        ++index;
-      }
+      if (!WriteEnumValue<T>(w, in))
+        Write(w, std::underlying_type_t<T>(in)); // Not in table so fallback to underlying value
     }
 
     //---------------------------------------------------------------------------------------------------------------------
@@ -348,34 +442,35 @@ namespace json5
       Error::Type getNonTypeError() override { return Error::ObjectExpected; }
 
       bool allowObject() override { return true; }
-      std::unique_ptr<BaseReflector> getReflectorForKey(std::string key) override
+      std::unique_ptr<BaseReflector> getReflectorForKey(std::string key) override { return GetValueReflector(m_obj, key); }
+
+      //---------------------------------------------------------------------------------------------------------------------
+      template <typename ValueType>
+      inline static std::unique_ptr<BaseReflector> MakeReflector(ValueType& in)
       {
-        auto tuple = detail::ClassWrapper<T>::MakeNamedTuple(m_obj);
-        return ReadNamedTuple(key, tuple);
+        return std::make_unique<Reflector<ValueType>>(in);
       }
 
       //---------------------------------------------------------------------------------------------------------------------
-      template <size_t Index = 0, typename... Types>
-      inline std::unique_ptr<BaseReflector> ReadTuple(std::string_view name, const char* names, std::tuple<Types...>& t)
+      template <size_t Index = 0>
+      inline static std::unique_ptr<BaseReflector> GetValueReflectorInType(T& in, std::string_view name)
       {
-        auto candidate = detail::GetNameSlice(names, Index);
-        if (candidate == name)
-          return std::make_unique<Reflector<std::remove_reference_t<std::tuple_element_t<Index, std::tuple<Types...>>>>>(std::get<Index>(t));
-        else if constexpr (Index + 1 != sizeof...(Types))
-          return ReadTuple<Index + 1>(name, names, t);
-
-        return {};
+        if (name == ClassWrapper<T>::Names[Index])
+          return MakeReflector(std::get<Index>(Json5Access<T>::GetTie(in)));
+        else if constexpr (Index < ClassWrapper<T>::NameCount - 1)
+          return GetValueReflectorInType<Index + 1>(in, name);
+        else
+          return {};
       }
 
       //---------------------------------------------------------------------------------------------------------------------
-      template <size_t Index = 0, typename... Types>
-      inline std::unique_ptr<BaseReflector> ReadNamedTuple(std::string_view name, std::tuple<Types...>& t)
+      inline static std::unique_ptr<BaseReflector> GetValueReflector(T& in, std::string_view name)
       {
-        if (std::unique_ptr<BaseReflector> reflector = ReadTuple(name, std::get<Index>(t), std::get<Index + 1>(t)))
+        if (std::unique_ptr<BaseReflector> reflector = GetValueReflectorInType(in, name))
           return reflector;
 
-        if constexpr (Index + 2 != sizeof...(Types))
-          return ReadNamedTuple<Index + 2>(name, t);
+        if constexpr (!std::is_same_v<typename Json5Access<T>::SuperCls, std::false_type>)
+          return Reflector<typename Json5Access<T>::SuperCls>::GetValueReflector(in, name);
 
         return std::make_unique<IgnoreReflector>();
       }
@@ -443,23 +538,13 @@ namespace json5
       {
         if constexpr (EnumTable<T>())
         {
-          size_t index = 0;
-          const auto* names = EnumTable<T>::Names;
-          const auto* values = EnumTable<T>::Values;
-
-          while (true)
+          for (size_t index = 0; index < sizeof(EnumWrapper<T>::Names); index++)
           {
-            auto name = GetNameSlice(names, index);
-            if (name.empty())
-              break;
-
-            if (name == str)
+            if (str == EnumWrapper<T>::Names[index])
             {
-              m_obj = values[index];
+              m_obj = EnumTable<T>::Values[index];
               return;
             }
-
-            ++index;
           }
 
           m_err = Error::InvalidEnum;
