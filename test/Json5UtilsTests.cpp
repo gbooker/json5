@@ -301,6 +301,19 @@ struct OptIvar
   JSON5_MEMBERS(val);
 };
 
+struct DocumentContainer
+{
+  json5::Document nesting;
+  json5::Document array;
+  json5::Document null;
+  json5::Document boolean;
+  json5::Document number;
+  json5::Document str;
+  int count;
+
+  JSON5_MEMBERS(nesting, array, null, boolean, number, str, count);
+};
+
 /////////////////////////////////////////////////////////////////////////////////////////
 TEST(Json5, Reflection)
 {
@@ -407,6 +420,48 @@ TEST(Json5, Reflection)
 
     json5::FromString(setStr, result);
     EXPECT_EQ(result.val, 42);
+  }
+
+  {
+    DocumentContainer container;
+    string jsonStr = R"({
+  nesting: {
+    arr: [
+      5,
+      "a",
+      null,
+      true,
+      false,
+      [
+        "b",
+        "c"
+      ]
+    ],
+    obj: {
+      d: "e",
+      f: null
+    },
+    int: 42,
+    double: 42.4242,
+    null: null,
+    boolean: true
+  },
+  array: [
+    9,
+    false
+  ],
+  null: null,
+  boolean: true,
+  number: 4242,
+  str: "My Wonderful string",
+  count: 45
+}
+)";
+    json5::Error err = json5::FromString(jsonStr, container);
+    EXPECT_FALSE(err);
+
+    string roundTrip = json5::ToString(container);
+    EXPECT_EQ(roundTrip, jsonStr);
   }
 }
 

@@ -151,12 +151,15 @@ namespace json5
       m_counts.pop_back();
 
       if (m_stack.empty())
-      {
-        m_doc.assignRoot(m_currentValue);
-        m_currentValue = m_doc;
-      }
+        assignRoot();
 
       return Error::None;
+    }
+
+    void assignRoot()
+    {
+      m_doc.assignRoot(m_currentValue);
+      m_currentValue = m_doc;
     }
 
     void addKey() override

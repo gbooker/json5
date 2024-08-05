@@ -243,6 +243,12 @@ namespace json5
     }
 
     //---------------------------------------------------------------------------------------------------------------------
+    inline void Write(Writer& writer, const Document& in)
+    {
+      Write(writer, (Value)in);
+    }
+
+    //---------------------------------------------------------------------------------------------------------------------
     template <typename Type>
     inline void WriteTupleValue(Writer& w, std::string_view name, const Type& in)
     {
@@ -374,6 +380,7 @@ namespace json5
     class BaseReflector
     {
     public:
+      virtual ~BaseReflector() {}
       virtual Error::Type getNonTypeError() = 0;
       virtual Error::Type setValue(double number) { return getNonTypeError(); }
       virtual Error::Type setValue(bool boolean) { return getNonTypeError(); }
@@ -690,6 +697,127 @@ namespace json5
     {
     public:
       using MapReflector<std::unordered_map<K, T, P, A>, K, T>::MapReflector;
+    };
+
+    class DocumentBuilderReflector : public RefReflector<DocumentBuilder>
+    {
+    public:
+      using RefReflector<DocumentBuilder>::m_obj;
+
+      DocumentBuilderReflector(DocumentBuilder& builder, bool objectValue, bool arrayValue, bool root = false)
+        : RefReflector<DocumentBuilder>(builder)
+        , m_objectValue(objectValue)
+        , m_arrayValue(arrayValue)
+        , m_root(root)
+      {}
+
+      ~DocumentBuilderReflector() override
+      {
+        if (m_needPop)
+          m_obj.pop();
+        else if (m_root)
+          m_obj.assignRoot(); // The root is assigned on the top-level array or object pop but we want to allow other json type roots in this case
+
+        if (m_objectValue)
+          m_obj.addKeyedValue();
+        if (m_arrayValue)
+          m_obj.addArrayValue();
+      }
+
+      Error::Type getNonTypeError() override { return Error::ObjectExpected; }
+      Error::Type setValue(double number) override
+      {
+        m_obj.setValue(number);
+        return Error::None;
+      }
+
+      Error::Type setValue(bool boolean) override
+      {
+        m_obj.setValue(boolean);
+        return Error::None;
+      }
+
+      Error::Type setValue(std::nullptr_t) override
+      {
+        m_obj.setValue(nullptr);
+        return Error::None;
+      }
+
+      bool allowString() override
+      {
+        m_obj.setString();
+        return true;
+      }
+
+      void setValue(std::string str) override
+      {
+        m_obj.stringBufferAdd(str);
+        m_obj.stringBufferEnd();
+      }
+
+      bool allowObject() override
+      {
+        m_obj.pushObject();
+        m_needPop = true;
+        return true;
+      }
+
+      std::unique_ptr<BaseReflector> getReflectorForKey(std::string key) override
+      {
+        m_obj.setString();
+        m_obj.stringBufferAdd(key);
+        m_obj.addKey();
+        return std::make_unique<DocumentBuilderReflector>(m_obj, true, false);
+      }
+
+      bool allowArray() override
+      {
+        m_obj.pushArray();
+        m_needPop = true;
+        return true;
+      }
+
+      std::unique_ptr<BaseReflector> getReflectorInArray() override
+      {
+        return std::make_unique<DocumentBuilderReflector>(m_obj, false, true);
+      }
+
+    protected:
+      bool m_needPop = false;
+      bool m_arrayValue = false;
+      bool m_objectValue = false;
+      bool m_root = false;
+    };
+
+    template <>
+    class Reflector<Document> : public RefReflector<Document>
+    {
+    public:
+      using RefReflector<Document>::m_obj;
+
+      explicit Reflector(Document& doc)
+        : RefReflector<Document>::RefReflector(doc)
+        , m_builder(m_obj)
+        , m_builderReflector(m_builder, false, false, true)
+      {}
+
+      Error::Type getNonTypeError() override { return m_builderReflector.getNonTypeError(); }
+      Error::Type setValue(double number) override { return m_builderReflector.setValue(number); }
+      Error::Type setValue(bool boolean) override { return m_builderReflector.setValue(boolean); }
+      Error::Type setValue(std::nullptr_t) override { return m_builderReflector.setValue(nullptr); }
+
+      bool allowString() override { return m_builderReflector.allowString(); }
+      void setValue(std::string str) override { return m_builderReflector.setValue(std::move(str)); }
+
+      bool allowObject() override { return m_builderReflector.allowObject(); }
+      std::unique_ptr<BaseReflector> getReflectorForKey(std::string key) override { return m_builderReflector.getReflectorForKey(std::move(key)); }
+
+      bool allowArray() override { return m_builderReflector.allowArray(); }
+      std::unique_ptr<BaseReflector> getReflectorInArray() override { return m_builderReflector.getReflectorInArray(); }
+
+    protected:
+      DocumentBuilder m_builder;
+      DocumentBuilderReflector m_builderReflector;
     };
 
     template <>
