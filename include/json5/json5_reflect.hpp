@@ -169,7 +169,9 @@ namespace json5
 
     /* Forward declarations */
     template <typename T>
-    void Write(Writer& w, const T& in);
+    inline void Write(Writer& w, const T& in);
+    template <typename T>
+    inline void WriteObjTuples(Writer& w, const T& in);
     template <typename T>
     void WriteArray(Writer& w, const T* in, size_t numItems);
     template <typename T>
@@ -179,74 +181,116 @@ namespace json5
     void WriteIndependentValue(Writer& w, const IndependentValue& in);
 
     //---------------------------------------------------------------------------------------------------------------------
-    inline void Write(Writer& w, bool in) { w.writeBoolean(in); }
-    inline void Write(Writer& w, int in) { w.writeNumber(double(in)); }
-    inline void Write(Writer& w, unsigned in) { w.writeNumber(double(in)); }
-    inline void Write(Writer& w, float in) { w.writeNumber(double(in)); }
-    inline void Write(Writer& w, double in) { w.writeNumber(in); }
-
-    //---------------------------------------------------------------------------------------------------------------------
-    inline void Write(Writer& w, const char* in) { w.writeString(in); }
-    inline void Write(Writer& w, const std::string& in) { w.writeString(in); }
-
-    //---------------------------------------------------------------------------------------------------------------------
-    inline void Write(Writer& w, const IndependentValue& in)
+    template <typename T, typename Enable = void>
+    struct ReflectionWriter
     {
-      WriteIndependentValue(w, in);
-    }
+      static inline void Write(Writer& w, const T& in)
+      {
+        w.beginObject();
+        WriteObjTuples(w, in);
+        w.endObject();
+      }
+    };
+
+    //---------------------------------------------------------------------------------------------------------------------
+    template <typename T>
+    struct ReflectionWriter<T, std::enable_if_t<std::is_arithmetic_v<T>>>
+    {
+      static inline void Write(Writer& w, T in)
+      {
+        if constexpr (std::is_integral_v<T>)
+          assert(in < (1LL << 53));
+
+        w.writeNumber((double)in);
+      }
+    };
+
+    //---------------------------------------------------------------------------------------------------------------------
+    template <>
+    struct ReflectionWriter<bool>
+    {
+      static inline void Write(Writer& w, bool in) { w.writeBoolean(in); }
+    };
+
+    //---------------------------------------------------------------------------------------------------------------------
+    template <>
+    struct ReflectionWriter<char*>
+    {
+      static inline void Write(Writer& w, const char* in) { w.writeString(in); }
+    };
+
+    //---------------------------------------------------------------------------------------------------------------------
+    template <>
+    struct ReflectionWriter<std::string>
+    {
+      static inline void Write(Writer& w, const std::string& in) { w.writeString(in); }
+    };
+
+    //---------------------------------------------------------------------------------------------------------------------
+    template <>
+    struct ReflectionWriter<IndependentValue>
+    {
+      static inline void Write(Writer& w, const IndependentValue& in) { WriteIndependentValue(w, in); }
+    };
 
     //---------------------------------------------------------------------------------------------------------------------
     template <typename T, typename A>
-    inline void Write(Writer& w, const std::vector<T, A>& in)
+    struct ReflectionWriter<std::vector<T, A>>
     {
-      return WriteArray(w, in.data(), in.size());
-    }
+      static inline void Write(Writer& w, const std::vector<T, A>& in) { WriteArray(w, in.data(), in.size()); }
+    };
 
+    //---------------------------------------------------------------------------------------------------------------------
     template <typename A>
-    inline void Write(Writer& w, const std::vector<bool, A>& in)
+    struct ReflectionWriter<std::vector<bool, A>>
     {
-      w.beginArray();
-      for (size_t i = 0; i < in.size(); ++i)
+      static inline void Write(Writer& w, const std::vector<bool, A>& in)
       {
-        w.beginArrayElement();
-        Write(w, (bool)in[i]);
+        w.beginArray();
+        for (size_t i = 0; i < in.size(); ++i)
+        {
+          w.beginArrayElement();
+          ReflectionWriter<bool>::Write(w, (bool)in[i]);
+        }
+
+        w.endArray();
       }
-
-      w.endArray();
-    }
+    };
 
     //---------------------------------------------------------------------------------------------------------------------
     template <typename T, size_t N>
-    inline void Write(Writer& w, const T (&in)[N])
+    struct ReflectionWriter<T[N]>
     {
-      return WriteArray(w, in, N);
-    }
+      static inline void Write(Writer& w, const T (&in)[N]) { return WriteArray(w, in, N); }
+    };
 
     //---------------------------------------------------------------------------------------------------------------------
     template <typename T, size_t N>
-    inline void Write(Writer& w, const std::array<T, N>& in)
+    struct ReflectionWriter<std::array<T, N>>
     {
-      return WriteArray(w, in.data(), N);
-    }
+      static inline void Write(Writer& w, const std::array<T, N>& in) { return WriteArray(w, in.data(), N); }
+    };
 
     //---------------------------------------------------------------------------------------------------------------------
     template <typename K, typename T, typename P, typename A>
-    inline void Write(Writer& w, const std::map<K, T, P, A>& in)
+    struct ReflectionWriter<std::map<K, T, P, A>>
     {
-      WriteMap(w, in);
-    }
-
-    template <typename K, typename T, typename H, typename EQ, typename A>
-    inline void Write(Writer& w, const std::unordered_map<K, T, H, EQ, A>& in)
-    {
-      WriteMap(w, in);
-    }
+      static inline void Write(Writer& w, const std::map<K, T, P, A>& in) { WriteMap(w, in); }
+    };
 
     //---------------------------------------------------------------------------------------------------------------------
-    inline void Write(Writer& writer, const Document& in)
+    template <typename K, typename T, typename H, typename EQ, typename A>
+    struct ReflectionWriter<std::unordered_map<K, T, H, EQ, A>>
     {
-      Write(writer, (Value)in);
-    }
+      static inline void Write(Writer& w, const std::unordered_map<K, T, H, EQ, A>& in) { WriteMap(w, in); }
+    };
+
+    //---------------------------------------------------------------------------------------------------------------------
+    template <>
+    struct ReflectionWriter<Document>
+    {
+      static inline void Write(Writer& w, const Document& in) { json5::Write(w, (const Value&)in); }
+    };
 
     //---------------------------------------------------------------------------------------------------------------------
     template <typename Type>
@@ -260,11 +304,11 @@ namespace json5
         if constexpr (EnumTable<Type>())
           WriteEnum(w, in);
         else
-          Write(w, std::underlying_type_t<Type>(in));
+          ReflectionWriter<std::underlying_type_t<Type>>::Write(w, std::underlying_type_t<Type>(in));
       }
       else
       {
-        Write(w, in);
+        ReflectionWriter<Type>::Write(w, in);
       }
     }
 
@@ -302,9 +346,7 @@ namespace json5
     template <typename T>
     inline void Write(Writer& w, const T& in)
     {
-      w.beginObject();
-      WriteObjTuples(w, in);
-      w.endObject();
+      ReflectionWriter<T>::Write(w, in);
     }
 
     //---------------------------------------------------------------------------------------------------------------------
@@ -584,6 +626,25 @@ namespace json5
     };
 
     template <>
+    class Reflector<std::vector<bool>::reference> : public BaseReflector
+    {
+    public:
+      explicit Reflector(std::vector<bool>::reference ref)
+        : m_obj(std::move(ref))
+      {}
+
+      Error::Type getNonTypeError() override { return Error::BooleanExpected; }
+      Error::Type setValue(bool boolean) override
+      {
+        m_obj = boolean;
+        return Error::None;
+      }
+
+    protected:
+      std::vector<bool>::reference m_obj;
+    };
+
+    template <>
     class Reflector<std::string> : public RefReflector<std::string>
     {
     public:
@@ -596,14 +657,14 @@ namespace json5
       void setValue(std::string str) override { m_obj = std::move(str); }
     };
 
-    template <typename T>
-    class Reflector<std::vector<T>> : public RefReflector<std::vector<T>>
+    template <typename T, typename A>
+    class Reflector<std::vector<T, A>> : public RefReflector<std::vector<T, A>>
     {
     public:
       using RefReflector<std::vector<T>>::m_obj;
 
-      explicit Reflector(std::vector<T>& obj)
-        : RefReflector<std::vector<T>>::RefReflector(obj)
+      explicit Reflector(std::vector<T, A>& obj)
+        : RefReflector<std::vector<T, A>>::RefReflector(obj)
       {
         m_obj.clear();
       }
@@ -613,7 +674,10 @@ namespace json5
       std::unique_ptr<BaseReflector> getReflectorInArray() override
       {
         m_obj.push_back({});
-        return std::make_unique<Reflector<T>>(m_obj.back());
+        if constexpr (std::is_same_v<T, bool>)
+          return std::make_unique<Reflector<std::vector<bool>::reference>>(m_obj.back());
+        else
+          return std::make_unique<Reflector<T>>(m_obj.back());
       }
     };
 

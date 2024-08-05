@@ -51,6 +51,7 @@ Provides functionality to read/write structs/classes from/to a string, stream, o
 
 ### Reading from JSON
 Reading is accomplished via the templated class `json5::detail::Reflector`.  A custom deserializer can be made via a template specialiaztion (or partial specialization) for the class type.  Often one would want to inherit `json5::detail::RefReflector` which holds a reference to the target object.  Then override the relevant functions in `json5::detail::BaseReflector`.  This is works because `Parser` will parse the JSON, calling functions on `ReflectionBuilder` which uses a stack of `BaseReflector` objects as it parses depth first into an object.
+Writing is accomplished via the templated struct `json5::detail::ReflectionWriter`.  A custom serialization should create a template specialization (or partial specialiaztion) for this struct and implement `static inline void Write(Writer& w, const T& in)` with the proper value for `T` (in need not be a const ref but could instead take by value like is done when serializing numbers but non-primitives likely should be const ref).  This was changed from a templated function becuase partial specializations are not possible with functions but are possible with structs.
 
 ## `json5_base.hpp`
 Contains `Error` definitions, `ValueType` enum, and macro definitions.
@@ -79,11 +80,23 @@ struct Triangle
 JSON5_CLASS(Triangle, a, b, c)
 
 namespace json5::detail {
-  // Write Vec3 as JSON array of 3 numbers
-  inline void Write(writer &w, const Vec3 &in)
+  // Write Vec3 to JSON array
+  template <>
+  class ReflectionWriter<Vec3>
   {
-    Write(w, std::array<float, 3>{in.x, in.y, in.z});
-  }
+  public:
+    static inline void Write(Writer& w, const Vec3& in)
+    {
+      w.beginArray();
+      w.beginArrayElement();
+      json5::detail::Write(w, in.x);
+      w.beginArrayElement();
+      json5::detail::Write(w, in.y);
+      w.beginArrayElement();
+      json5::detail::Write(w, in.z);
+      w.endArray();
+    }
+  };
 
   // Read Vec3 from JSON array
   template <>
@@ -126,14 +139,26 @@ namespace json5::detail {
   };
 
   // Write Triangle as JSON array of 3 numbers
-  inline void Write(writer &w, const Triangle &in)
+  template <>
+  class ReflectionWriter<Triangle>
   {
-    Write(w, std::array<float, 3>{in.x, in.y, in.z});
-  }
+  public:
+    static inline void Write(Writer& w, const Triangle& in)
+    {
+      w.beginArray();
+      w.beginArrayElement();
+      json5::detail::Write(w, in.a);
+      w.beginArrayElement();
+      json5::detail::Write(w, in.b);
+      w.beginArrayElement();
+      json5::detail::Write(w, in.c);
+      w.endArray();
+    }
+  };
 
   // Read Triangle from JSON array
   template <>
-  class json5::detail::Reflector<Triangle> : public RefReflector<Triangle>
+  class Reflector<Triangle> : public RefReflector<Triangle>
   {
   public:
     using RefReflector<Triangle>::RefReflector;
