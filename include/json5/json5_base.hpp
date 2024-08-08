@@ -134,7 +134,7 @@ struct error final
 		array_expected,     // expected array [ ... ]
 		wrong_array_size,   // invalid number of array elements
 		invalid_enum,       // invalid enum value or string (conversion failed)
-		could_not_open,     // stream is not open
+		could_not_open, 		// stream is not open
 	};
 
 	static constexpr const char *type_string[] =
@@ -144,7 +144,7 @@ struct error final
 		"number expected", "string expected", "object expected", "array expected",
 		"wrong array size", "invalid enum", "could not open stream",
 	};
-	
+
 	int type = none;
 	int line = 0;
 	int column = 0;

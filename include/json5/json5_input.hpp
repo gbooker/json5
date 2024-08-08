@@ -470,7 +470,7 @@ inline error parser::parse_string( detail::string_offset &result )
 				char code[5] = { };
 
 				for ( size_t i = 0, S = ( ch == 'x' ) ? 2 : 4; i < S; ++i )
-					if ( !strchr( hexChars, code[i] = char( next() ) ) )
+					if ( !strchr( hexChars, code[i] = char( next() ) ))
 						return make_error( error::invalid_escape_seq );
 
 				uint64_t unicodeChar = 0;
@@ -590,7 +590,7 @@ inline error from_string( std::string_view str, document &doc )
 inline error from_file( std::string_view fileName, document &doc )
 {
 	std::ifstream ifs( std::string( fileName ).c_str() );
-	if ( !ifs.is_open() )
+	if (!ifs.is_open())
 		return { error::could_not_open };
 
 	auto str = std::string( std::istreambuf_iterator<char>( ifs ), std::istreambuf_iterator<char>() );

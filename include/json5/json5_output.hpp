@@ -218,7 +218,7 @@ inline bool to_file( const std::string &fileName, const document &doc, const wri
 //---------------------------------------------------------------------------------------------------------------------
 inline void to_stream( std::ostream &os, const error &err )
 {
-	os << err.type_string[err.type] << " at " << err.line << ":" << err.column;
+  os << err.type_string[err.type] << " at " << err.line << ":" << err.column;
 }
 
 //---------------------------------------------------------------------------------------------------------------------
