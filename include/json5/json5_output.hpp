@@ -2,6 +2,7 @@
 
 #include <fstream>
 #include <iomanip>
+#include <math.h>
 #include <sstream>
 
 #include "json5.hpp"
@@ -68,9 +69,21 @@ namespace json5
     void writeNumber(double number) override
     {
       if (double _; modf(number, &_) == 0.0)
+      {
         m_os << (int64_t)number;
+      }
+      else if (isnan(number))
+      {
+        // JSON cannot express NaN so we use null instead to be consistent with JS
+        if (m_wp.compact)
+          m_os << "null";
+        else
+          m_os << "NaN";
+      }
       else
+      {
         m_os << number;
+      }
     }
 
     void writeString(const char* str) override

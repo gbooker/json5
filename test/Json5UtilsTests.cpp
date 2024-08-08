@@ -162,6 +162,9 @@ TEST(Json5, LowLevelReflection)
     json5::Error err = FromString("5", (json5::Builder&)builder);
     EXPECT_FALSE(err);
     EXPECT_EQ(i, 5);
+
+    err = FromString("null", (json5::Builder&)builder);
+    EXPECT_TRUE(err);
   }
 
   {
@@ -202,6 +205,10 @@ TEST(Json5, LowLevelReflection)
     json5::Error err = FromString("5.5", (json5::Builder&)builder);
     EXPECT_FALSE(err);
     EXPECT_EQ(d, 5.5);
+
+    err = FromString("null", (json5::Builder&)builder);
+    EXPECT_FALSE(err);
+    EXPECT_TRUE(isnan(d));
   }
 
   {
@@ -268,6 +275,20 @@ TEST(Json5, LowLevelReflection)
     err = json5::FromString("null", (json5::Builder&)builder);
     EXPECT_FALSE(err);
     EXPECT_FALSE(o.has_value());
+  }
+
+  {
+    std::optional<double> o;
+    json5::ReflectionBuilder builder(o);
+    json5::Error err = FromString("5.5", (json5::Builder&)builder);
+    EXPECT_FALSE(err);
+    EXPECT_TRUE(o);
+    EXPECT_EQ(*o, 5.5);
+
+    err = json5::FromString("null", (json5::Builder&)builder);
+    EXPECT_FALSE(err);
+    EXPECT_TRUE(o.has_value());
+    EXPECT_TRUE(isnan(*o));
   }
 
   {
@@ -435,7 +456,8 @@ TEST(Json5, Reflection)
       [
         "b",
         "c"
-      ]
+      ],
+      NaN
     ],
     obj: {
       d: "e",
@@ -552,4 +574,17 @@ TEST(Json5, Independent)
 
   string str = json5::ToString(value, StandardJsonWriteParams);
   EXPECT_EQ(str, R"({"arr":["str",8,false],"bool":false,"num":435.243,"obj":{"a":"value"},"str":"a string"})");
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////
+TEST(Json5, NullsInString)
+{
+  string expected = "\"This is a str with a \\u0000 in it\"\n";
+  string decoded;
+  json5::Error err = json5::FromString(expected, decoded);
+  EXPECT_FALSE(err);
+  EXPECT_EQ(decoded, "This is a str with a \0 in it"sv);
+
+  string roundTrip = json5::ToString(decoded);
+  EXPECT_EQ(roundTrip, expected);
 }

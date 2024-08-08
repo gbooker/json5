@@ -55,7 +55,8 @@ namespace json5
       ArrayEnd,
       LiteralTrue,
       LiteralFalse,
-      LiteralNull
+      LiteralNull,
+      LiteralNaN,
     };
 
     Error parseValue();
@@ -198,6 +199,8 @@ namespace json5
           errType = m_builder.setValue(false);
         else if (lit == TokenType::LiteralNull)
           errType = m_builder.setValue(nullptr);
+        else if (lit == TokenType::LiteralNaN)
+          errType = m_builder.setValue(NAN);
         else
           return makeError(Error::InvalidLiteral);
 
@@ -581,6 +584,15 @@ namespace json5
       if (next() && next() == 'u' && next() == 'l' && next() == 'l')
       {
         result = TokenType::LiteralNull;
+        return {Error::None};
+      }
+    }
+    // "NaN"
+    else if (ch == 'N')
+    {
+      if (next() && next() == 'a' && next() == 'N')
+      {
+        result = TokenType::LiteralNaN;
         return {Error::None};
       }
     }

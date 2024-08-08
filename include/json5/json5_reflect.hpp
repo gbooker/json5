@@ -602,6 +602,19 @@ namespace json5
       using RefReflector<T>::setValue;
 
       Error::Type getNonTypeError() override { return Error::NumberExpected; }
+      Error::Type setValue(std::nullptr_t) override
+      {
+        if constexpr (std::is_integral_v<T>)
+        {
+          return getNonTypeError();
+        }
+        else
+        {
+          m_obj = NAN;
+          return Error::None;
+        }
+      }
+
       Error::Type setValue(double number) override
       {
         m_obj = number;
