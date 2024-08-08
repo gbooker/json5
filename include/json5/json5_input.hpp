@@ -2,13 +2,7 @@
 
 #include "json5_builder.hpp"
 
-#if __has_include(<charconv>)
-	#include <charconv>
-	#if !defined(_JSON5_HAS_CHARCONV)
-		#define _JSON5_HAS_CHARCONV
-	#endif
-#endif
-
+#include <charconv>
 #include <fstream>
 #include <sstream>
 
