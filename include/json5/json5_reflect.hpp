@@ -293,6 +293,38 @@ namespace json5
     };
 
     //---------------------------------------------------------------------------------------------------------------------
+    class TupleWriter
+    {
+    public:
+      template <typename FirstType, typename... RemainingTypes>
+      static inline void Write(Writer& w, const FirstType& first, const RemainingTypes&... remaining)
+      {
+        w.beginArrayElement();
+        json5::detail::Write(w, first);
+        TupleWriter::Write<RemainingTypes...>(w, remaining...);
+      }
+
+      template <typename OnlyType>
+      static inline void Write(Writer& w, const OnlyType& only)
+      {
+        w.beginArrayElement();
+        json5::detail::Write(w, only);
+      }
+    };
+
+    template <typename... Types>
+    class TupleReflectionWriter
+    {
+    public:
+      static inline void Write(Writer& w, const Types&... obj)
+      {
+        w.beginArray();
+        TupleWriter::Write<Types...>(w, obj...);
+        w.endArray();
+      }
+    };
+
+    //---------------------------------------------------------------------------------------------------------------------
     template <typename Type>
     inline void WriteTupleValue(Writer& w, std::string_view name, const Type& in)
     {
@@ -958,6 +990,90 @@ namespace json5
       }
     };
 
+    class BaseTupleComponent
+    {
+    public:
+      virtual std::optional<std::reference_wrapper<BaseTupleComponent>> next() = 0;
+      virtual std::unique_ptr<BaseReflector> reflector() = 0;
+    };
+
+    template <typename T>
+    class TupleComponentRef : public BaseTupleComponent
+    {
+    public:
+      explicit TupleComponentRef(T& obj)
+        : m_obj(obj)
+      {}
+
+      std::unique_ptr<BaseReflector> reflector() override { return std::make_unique<Reflector<T>>(m_obj); }
+
+    protected:
+      T& m_obj;
+    };
+
+    template <typename FirstType, typename... RemainingTypes>
+    class RefsTuple : public TupleComponentRef<FirstType>
+    {
+    public:
+      explicit RefsTuple(FirstType& first, RemainingTypes&... remaining)
+        : TupleComponentRef<FirstType>(first)
+        , m_remaining(remaining...)
+      {}
+
+      std::optional<std::reference_wrapper<BaseTupleComponent>> next() override { return m_remaining; }
+
+    protected:
+      RefsTuple<RemainingTypes...> m_remaining;
+    };
+
+    template <typename OnlyType>
+    class RefsTuple<OnlyType> : public TupleComponentRef<OnlyType>
+    {
+    public:
+      explicit RefsTuple(OnlyType& only)
+        : TupleComponentRef<OnlyType>(only)
+      {}
+
+      std::optional<std::reference_wrapper<BaseTupleComponent>> next() override { return std::nullopt; }
+    };
+
+    template <typename... Types>
+    class TupleReflector : public BaseReflector
+    {
+    public:
+      explicit TupleReflector(Types&... obj)
+        : m_components(obj...)
+      {}
+
+      Error::Type getNonTypeError() override { return Error::ArrayExpected; }
+      bool allowArray() override { return true; }
+      std::unique_ptr<BaseReflector> getReflectorInArray() override
+      {
+        m_writtenElements++;
+
+        if (!m_current)
+          m_current = m_components;
+        else if (auto next = m_current->get().next())
+          m_current = *next;
+        else
+          return std::make_unique<IgnoreReflector>();
+
+        return m_current->get().reflector();
+      }
+
+      Error::Type complete() override
+      {
+        if (m_writtenElements != sizeof...(Types))
+          return Error::WrongArraySize;
+
+        return Error::None;
+      }
+
+    protected:
+      size_t m_writtenElements = 0;
+      std::optional<std::reference_wrapper<BaseTupleComponent>> m_current;
+      RefsTuple<Types...> m_components;
+    };
   } // namespace detail
 
   class ReflectionBuilder : public Builder

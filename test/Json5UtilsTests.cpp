@@ -588,126 +588,72 @@ struct Triangle
   Vec3 a, b, c;
 };
 
+// Let's have an object of different types (not recommended)
+struct TupleObj
+{
+  float num;
+  std::string str;
+  std::array<int, 1> arr;
+  bool boolean;
+};
+
 namespace json5::detail
 {
   // Read Vec3 from JSON array
   template <>
-  class Reflector<Vec3> : public RefReflector<Vec3>
+  class Reflector<Vec3> : public TupleReflector<float, float, float>
   {
   public:
-    using RefReflector<Vec3>::RefReflector;
-    using RefReflector<Vec3>::m_obj;
-
-    Error::Type getNonTypeError() override { return Error::ArrayExpected; }
-    bool allowArray() override { return true; }
-    std::unique_ptr<BaseReflector> getReflectorInArray() override
-    {
-      m_index++;
-      switch (m_index)
-      {
-      case 1:
-        return std::make_unique<Reflector<float>>(m_obj.x);
-      case 2:
-        return std::make_unique<Reflector<float>>(m_obj.y);
-      case 3:
-        return std::make_unique<Reflector<float>>(m_obj.z);
-      default:
-        break;
-      }
-
-      return std::make_unique<IgnoreReflector>();
-    }
-
-    Error::Type complete() override
-    {
-      if (m_index != 3)
-        return Error::WrongArraySize;
-
-      return Error::None;
-    }
-
-  protected:
-    size_t m_index = 0;
+    explicit Reflector(Vec3& vec)
+      : TupleReflector(vec.x, vec.y, vec.z)
+    {}
   };
 
   // Write Vec3 to JSON array
   template <>
-  class ReflectionWriter<Vec3>
+  class ReflectionWriter<Vec3> : public TupleReflectionWriter<float, float, float>
   {
   public:
-    static inline void Write(Writer& w, const Vec3& in)
-    {
-      w.beginArray();
-      w.beginArrayElement();
-      json5::detail::Write(w, in.x);
-      w.beginArrayElement();
-      json5::detail::Write(w, in.y);
-      w.beginArrayElement();
-      json5::detail::Write(w, in.z);
-      w.endArray();
-    }
+    static inline void Write(Writer& w, const Vec3& in) { TupleReflectionWriter::Write(w, in.x, in.y, in.z); }
   };
 
   // Read Triangle from JSON array
   template <>
-  class Reflector<Triangle> : public RefReflector<Triangle>
+  class Reflector<Triangle> : public TupleReflector<Vec3, Vec3, Vec3>
   {
   public:
-    using RefReflector<Triangle>::RefReflector;
-    using RefReflector<Triangle>::m_obj;
-
-    Error::Type getNonTypeError() override { return Error::ArrayExpected; }
-    bool allowArray() override { return true; }
-    std::unique_ptr<BaseReflector> getReflectorInArray() override
-    {
-      m_index++;
-      switch (m_index)
-      {
-      case 1:
-        return std::make_unique<Reflector<Vec3>>(m_obj.a);
-      case 2:
-        return std::make_unique<Reflector<Vec3>>(m_obj.b);
-      case 3:
-        return std::make_unique<Reflector<Vec3>>(m_obj.c);
-      default:
-        break;
-      }
-
-      return std::make_unique<IgnoreReflector>();
-    }
-
-    Error::Type complete() override
-    {
-      if (m_index != 3)
-        return Error::WrongArraySize;
-
-      return Error::None;
-    }
-
-  protected:
-    size_t m_index = 0;
+    explicit Reflector(Triangle& tri)
+      : TupleReflector(tri.a, tri.b, tri.c)
+    {}
   };
 
   // Write Triangle to JSON array
   template <>
-  class ReflectionWriter<Triangle>
+  class ReflectionWriter<Triangle> : public TupleReflectionWriter<Vec3, Vec3, Vec3>
   {
   public:
-    static inline void Write(Writer& w, const Triangle& in)
-    {
-      w.beginArray();
-      w.beginArrayElement();
-      json5::detail::Write(w, in.a);
-      w.beginArrayElement();
-      json5::detail::Write(w, in.b);
-      w.beginArrayElement();
-      json5::detail::Write(w, in.c);
-      w.endArray();
-    }
+    static inline void Write(Writer& w, const Triangle& in) { TupleReflectionWriter::Write(w, in.a, in.b, in.c); }
   };
+
+  template <>
+  class Reflector<TupleObj> : public TupleReflector<float, std::string, std::array<int, 1>, bool>
+  {
+  public:
+    explicit Reflector(TupleObj& tup)
+      : TupleReflector(tup.num, tup.str, tup.arr, tup.boolean)
+    {}
+  };
+
+  template <>
+  class ReflectionWriter<TupleObj> : public TupleReflectionWriter<float, std::string, std::array<int, 1>, bool>
+  {
+  public:
+    static inline void Write(Writer& w, const TupleObj& in) { TupleReflectionWriter::Write(w, in.num, in.str, in.arr, in.boolean); }
+  };
+
 } // namespace json5::detail
 
-TEST(Json5, Example)
+TEST(Json5, Tuple)
 {
   {
     Vec3 vec;
@@ -757,6 +703,24 @@ TEST(Json5, Example)
     EXPECT_FALSE(err);
 
     string roundTrip = json5::ToString(tri);
+    EXPECT_EQ(roundTrip, jsonStr);
+  }
+
+  {
+    TupleObj obj;
+    string jsonStr = R"([
+  42.42,
+  "Bar",
+  [
+    42
+  ],
+  true
+]
+)";
+    json5::Error err = json5::FromString(jsonStr, obj);
+    EXPECT_FALSE(err);
+
+    string roundTrip = json5::ToString(obj);
     EXPECT_EQ(roundTrip, jsonStr);
   }
 }

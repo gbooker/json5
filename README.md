@@ -82,118 +82,38 @@ JSON5_CLASS(Triangle, a, b, c)
 namespace json5::detail {
   // Write Vec3 to JSON array
   template <>
-  class ReflectionWriter<Vec3>
+  class ReflectionWriter<Vec3> : public TupleReflectionWriter<float, float, float>
   {
   public:
-    static inline void Write(Writer& w, const Vec3& in)
-    {
-      w.beginArray();
-      w.beginArrayElement();
-      json5::detail::Write(w, in.x);
-      w.beginArrayElement();
-      json5::detail::Write(w, in.y);
-      w.beginArrayElement();
-      json5::detail::Write(w, in.z);
-      w.endArray();
-    }
+    static inline void Write(Writer& w, const Vec3& in) { TupleReflectionWriter::Write(w, in.x, in.y, in.z); }
   };
 
   // Read Vec3 from JSON array
   template <>
-  class json5::detail::Reflector<Vec3> : public RefReflector<Vec3>
+  class Reflector<Vec3> : public TupleReflector<float, float, float>
   {
   public:
-    using RefReflector<Vec3>::RefReflector;
-    using RefReflector<Vec3>::m_obj;
-
-    Error::Type getNonTypeError() override { return Error::ArrayExpected; }
-    bool allowArray() override { return true; }
-    std::unique_ptr<BaseReflector> getReflectorInArray() override
-    {
-      m_index++;
-      switch (m_index)
-      {
-      case 1:
-        return std::make_unique<Reflector<float>>(m_obj.x);
-      case 2:
-        return std::make_unique<Reflector<float>>(m_obj.y);
-      case 3:
-        return std::make_unique<Reflector<float>>(m_obj.z);
-      default:
-        break;
-      }
-
-      return std::make_unique<IgnoreReflector>();
-    }
-
-    Error::Type complete() override
-    {
-      if (m_index != 3)
-        return Error::WrongArraySize;
-
-      return Error::None;
-    }
-
-  protected:
-    size_t m_index = 0;
+    explicit Reflector(Vec3& vec)
+      : TupleReflector(vec.x, vec.y, vec.z)
+    {}
   };
 
   // Write Triangle as JSON array of 3 numbers
   template <>
-  class ReflectionWriter<Triangle>
+  class ReflectionWriter<Triangle> : public TupleReflectionWriter<Vec3, Vec3, Vec3>
   {
   public:
-    static inline void Write(Writer& w, const Triangle& in)
-    {
-      w.beginArray();
-      w.beginArrayElement();
-      json5::detail::Write(w, in.a);
-      w.beginArrayElement();
-      json5::detail::Write(w, in.b);
-      w.beginArrayElement();
-      json5::detail::Write(w, in.c);
-      w.endArray();
-    }
+    static inline void Write(Writer& w, const Triangle& in) { TupleReflectionWriter::Write(w, in.a, in.b, in.c); }
   };
 
   // Read Triangle from JSON array
   template <>
-  class Reflector<Triangle> : public RefReflector<Triangle>
+  class Reflector<Triangle> : public TupleReflector<Vec3, Vec3, Vec3>
   {
   public:
-    using RefReflector<Triangle>::RefReflector;
-    using RefReflector<Triangle>::m_obj;
-
-    Error::Type getNonTypeError() override { return Error::ArrayExpected; }
-    bool allowArray() override { return true; }
-    std::unique_ptr<BaseReflector> getReflectorInArray() override
-    {
-      m_index++;
-      switch (m_index)
-      {
-      case 1:
-        return std::make_unique<Reflector<Vec3>>(m_obj.a);
-      case 2:
-        return std::make_unique<Reflector<Vec3>>(m_obj.b);
-      case 3:
-        return std::make_unique<Reflector<Vec3>>(m_obj.c);
-      default:
-        break;
-      }
-
-      return std::make_unique<IgnoreReflector>();
-    }
-
-    Error::Type complete() override
-    {
-      if (m_index != 3)
-        return Error::WrongArraySize;
-
-      return Error::None;
-    }
-
-  protected:
-    size_t m_index = 0;
+    explicit Reflector(Triangle& tri)
+      : TupleReflector(tri.a, tri.b, tri.c)
+    {}
   };
 } // namespace json5::detail
 ```
