@@ -737,3 +737,16 @@ TEST(Json5, NullsInString)
   string roundTrip = json5::ToString(decoded);
   EXPECT_EQ(roundTrip, expected);
 }
+
+/////////////////////////////////////////////////////////////////////////////////////////
+TEST(Json5, NullsInString)
+{
+  string expected = "\"This is a str with a \\u0000 in it\"\n";
+  string decoded;
+  json5::Error err = json5::FromString(expected, decoded);
+  EXPECT_FALSE(err);
+  EXPECT_EQ(decoded, "This is a str with a \0 in it"sv);
+
+  string roundTrip = json5::ToString(decoded);
+  EXPECT_EQ(roundTrip, expected);
+}

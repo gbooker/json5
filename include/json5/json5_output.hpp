@@ -124,6 +124,8 @@ namespace json5
           m_os << "\\'";
         else if (str[0] == '\\')
           m_os << "\\\\";
+        else if (str[0] == '\0')
+          m_os << "\\u0000";
         else if (uint8_t(str[0]) >= 128 && escapeUnicode)
         {
           uint32_t ch = 0;
