@@ -6,7 +6,7 @@
   template <>                                                           \
   struct json5::detail::Json5Access<_Name>                              \
   {                                                                     \
-    using SuperCls = _Base;                                             \
+    using SuperCls [[maybe_unused]] = _Base;                            \
     constexpr static auto GetNames() noexcept                           \
     {                                                                   \
       return #__VA_ARGS__;                                              \
@@ -75,7 +75,7 @@
 */
 #define JSON5_MEMBERS(...)        \
   JSON5_MEMBERS_BASE(__VA_ARGS__) \
-  using Json5SuperClass = std::false_type;
+  using Json5SuperClass [[maybe_unused]] = std::false_type;
 
 /*
   Generates members serialzation helper inside class with inheritance:
@@ -94,7 +94,7 @@
 */
 #define JSON5_MEMBERS_INHERIT(_Base, ...) \
   JSON5_MEMBERS_BASE(__VA_ARGS__)         \
-  using Json5SuperClass = _Base;
+  using Json5SuperClass [[maybe_unused]] = _Base;
 
 /*
   Generates enum wrapper:
