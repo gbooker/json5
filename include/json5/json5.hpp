@@ -20,7 +20,9 @@ namespace json5
   {
   public:
     // Construct null value
-    Value() noexcept = default;
+    Value() noexcept
+      : Value(nullptr)
+    {}
 
     // Construct null value
     explicit Value(std::nullptr_t) noexcept
