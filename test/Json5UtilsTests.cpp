@@ -750,3 +750,23 @@ TEST(Json5, NullsInString)
   string roundTrip = json5::ToString(decoded);
   EXPECT_EQ(roundTrip, expected);
 }
+
+/////////////////////////////////////////////////////////////////////////////////////////
+TEST(Json5, FormatterRestore)
+{
+  constexpr json5::WriterParams JSONCompatWriteParams {
+    "",
+    "",
+    true,
+    true,
+    true,
+    nullptr,
+  };
+  string expected = R"'({"displayTitle":"Fran\u00e7ais (AAC Stereo)","extendedDisplayTitle":"Fran\u00e7ais (AAC Stereo)","samplingRate":48000})'";
+  json5::Document doc;
+  json5::Error err = json5::FromString(expected, doc);
+  EXPECT_FALSE(err);
+
+  string roundTrip = json5::ToString(doc, JSONCompatWriteParams);
+  EXPECT_EQ(roundTrip, expected);
+}

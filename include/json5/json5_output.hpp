@@ -168,7 +168,16 @@ namespace json5
 
           if (ch <= std::numeric_limits<uint16_t>::max())
           {
+            // Save stream state that we are going to modify to restore afterwards
+            // Note: std::setw's change is reset after the << with a numeric type so it doesn't need to be saved
+            //
+            ios_base::fmtflags flags = m_os.flags();
+            std::basic_ios<char>::char_type fill = m_os.fill();
+
             m_os << "\\u" << std::hex << std::setfill('0') << std::setw(4) << ch;
+
+            m_os.fill(fill);
+            m_os.flags(flags);
           }
           else
             m_os << "?"; // JSON can't encode Unicode chars > 65535 (emojis)
