@@ -5,6 +5,15 @@
 #include "include/json5/json5_output.hpp"
 #include "include/json5/json5_reflect.hpp"
 
+constexpr json5::WriterParams JSONCompatWriteParams {
+  "",
+  "",
+  true,
+  true,
+  true,
+  nullptr,
+};
+
 using namespace std::string_literals;
 using namespace std::string_view_literals;
 namespace fs = std::filesystem;
@@ -568,7 +577,7 @@ TEST(Json5, Independent)
 
   EXPECT_EQ(value, expected);
 
-  std::string str = json5::ToString(value, StandardJsonWriteParams);
+  std::string str = json5::ToString(value, JSONCompatWriteParams);
   EXPECT_EQ(str, R"({"arr":["str",8,false],"bool":false,"num":435.243,"obj":{"a":"value"},"str":"a string"})");
 }
 
@@ -737,14 +746,6 @@ TEST(Json5, NullsInString)
 /////////////////////////////////////////////////////////////////////////////////////////
 TEST(Json5, FormatterRestore)
 {
-  constexpr json5::WriterParams JSONCompatWriteParams {
-    "",
-    "",
-    true,
-    true,
-    true,
-    nullptr,
-  };
   std::string expected = R"'({"displayTitle":"Fran\u00e7ais (AAC Stereo)","extendedDisplayTitle":"Fran\u00e7ais (AAC Stereo)","samplingRate":48000})'";
   json5::Document doc;
   json5::Error err = json5::FromString(expected, doc);
