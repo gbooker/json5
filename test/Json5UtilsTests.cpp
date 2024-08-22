@@ -1,5 +1,10 @@
 #include <gtest/gtest.h>
 
+#include "include/json5/json5.hpp"
+#include "include/json5/json5_input.hpp"
+#include "include/json5/json5_output.hpp"
+#include "include/json5/json5_reflect.hpp"
+
 using namespace std::string_literals;
 using namespace std::string_view_literals;
 namespace fs = std::filesystem;
