@@ -1102,7 +1102,7 @@ namespace json5
     }
 
     void stringBufferAdd(char ch) override { m_str.push_back(ch); }
-    void stringBufferAdd(std::string_view str) override { m_str = string(str); }
+    void stringBufferAdd(std::string_view str) override { m_str = std::string(str); }
     void stringBufferAddUtf8(uint32_t ch) override { StringBufferAddUtf8(m_str, ch); }
     void stringBufferEnd() override
     {
@@ -1266,7 +1266,7 @@ namespace json5
 
   protected:
     bool m_firstElement = false;
-    vector<bool> m_firstElementStack;
+    std::vector<bool> m_firstElementStack;
     DocumentBuilder m_builder;
   };
 

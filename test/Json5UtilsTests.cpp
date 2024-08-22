@@ -1,5 +1,9 @@
 #include <gtest/gtest.h>
 
+using namespace std::string_literals;
+using namespace std::string_view_literals;
+namespace fs = std::filesystem;
+
 /////////////////////////////////////////////////////////////////////////////////////////
 bool PrintError(const json5::Error& err)
 {
@@ -35,7 +39,7 @@ TEST(Json5, Build)
   }
   b.pop();
 
-  string expected = R"({
+  std::string expected = R"({
   x: "Hello!",
   y: 123,
   z: true,
@@ -56,7 +60,7 @@ TEST(Json5, LoadFromFile)
   fs::path path = "short_example.json5";
   PrintError(json5::FromFile(path.string(), doc));
 
-  string expected = R"({
+  std::string expected = R"({
   unquoted: "and you can quote me on that",
   singleQuotes: "I can use \"double quotes\" here",
   lineBreaks: "Look, Mom! No \\n's!",
@@ -212,7 +216,7 @@ TEST(Json5, LowLevelReflection)
   }
 
   {
-    string str;
+    std::string str;
     json5::ReflectionBuilder builder(str);
     json5::Error err = FromString("\"Hahaha\"", (json5::Builder&)builder);
     EXPECT_FALSE(err);
@@ -220,11 +224,11 @@ TEST(Json5, LowLevelReflection)
   }
 
   {
-    vector<string> v;
+    std::vector<std::string> v;
     json5::ReflectionBuilder builder(v);
     json5::Error err = FromString("[\"Hahaha\",\"Hoho\"]", (json5::Builder&)builder);
     EXPECT_FALSE(err);
-    vector<string> expected = {
+    std::vector<std::string> expected = {
       "Hahaha",
       "Hoho",
     };
@@ -232,11 +236,11 @@ TEST(Json5, LowLevelReflection)
   }
 
   {
-    map<string, int> m;
+    std::map<std::string, int> m;
     json5::ReflectionBuilder builder(m);
     json5::Error err = FromString("{\"Hahaha\":3,\"Hoho\":2}", (json5::Builder&)builder);
     EXPECT_FALSE(err);
-    map<string, int> expected = {
+    std::map<std::string, int> expected = {
       {"Hahaha", 3},
       {"Hoho", 2},
     };
@@ -421,8 +425,8 @@ TEST(Json5, Reflection)
 
   {
     OptIvar empty;
-    string emptyStr = json5::ToString(empty);
-    string emptyExpected = R"({
+    std::string emptyStr = json5::ToString(empty);
+    std::string emptyExpected = R"({
 }
 )";
     EXPECT_EQ(emptyStr, emptyExpected);
@@ -432,8 +436,8 @@ TEST(Json5, Reflection)
     EXPECT_FALSE(result.val.has_value());
 
     OptIvar set = {42};
-    string setStr = json5::ToString(set);
-    string setExpected = R"({
+    std::string setStr = json5::ToString(set);
+    std::string setExpected = R"({
   val: 42
 }
 )";
@@ -445,7 +449,7 @@ TEST(Json5, Reflection)
 
   {
     DocumentContainer container;
-    string jsonStr = R"({
+    std::string jsonStr = R"({
   nesting: {
     arr: [
       5,
@@ -482,7 +486,7 @@ TEST(Json5, Reflection)
     json5::Error err = json5::FromString(jsonStr, container);
     EXPECT_FALSE(err);
 
-    string roundTrip = json5::ToString(container);
+    std::string roundTrip = json5::ToString(container);
     EXPECT_EQ(roundTrip, jsonStr);
   }
 }
@@ -540,7 +544,7 @@ TEST(Json5, DISABLED_PerformanceOfIndependentValue)
 TEST(Json5, Independent)
 {
   json5::IndependentValue value;
-  string json = R"(
+  std::string json = R"(
     {
       "bool": false,
       "num": 435.243,
@@ -572,7 +576,7 @@ TEST(Json5, Independent)
 
   EXPECT_EQ(value, expected);
 
-  string str = json5::ToString(value, StandardJsonWriteParams);
+  std::string str = json5::ToString(value, StandardJsonWriteParams);
   EXPECT_EQ(str, R"({"arr":["str",8,false],"bool":false,"num":435.243,"obj":{"a":"value"},"str":"a string"})");
 }
 
@@ -666,7 +670,7 @@ TEST(Json5, Tuple)
 
   {
     Vec3 vec;
-    string jsonStr = R"([
+    std::string jsonStr = R"([
   3,
   4,
   5
@@ -675,13 +679,13 @@ TEST(Json5, Tuple)
     json5::Error err = json5::FromString(jsonStr, vec);
     EXPECT_FALSE(err);
 
-    string roundTrip = json5::ToString(vec);
+    std::string roundTrip = json5::ToString(vec);
     EXPECT_EQ(roundTrip, jsonStr);
   }
 
   {
     Triangle tri;
-    string jsonStr = R"([
+    std::string jsonStr = R"([
   [
     3,
     4,
@@ -702,13 +706,13 @@ TEST(Json5, Tuple)
     json5::Error err = json5::FromString(jsonStr, tri);
     EXPECT_FALSE(err);
 
-    string roundTrip = json5::ToString(tri);
+    std::string roundTrip = json5::ToString(tri);
     EXPECT_EQ(roundTrip, jsonStr);
   }
 
   {
     TupleObj obj;
-    string jsonStr = R"([
+    std::string jsonStr = R"([
   42.42,
   "Bar",
   [
@@ -720,7 +724,7 @@ TEST(Json5, Tuple)
     json5::Error err = json5::FromString(jsonStr, obj);
     EXPECT_FALSE(err);
 
-    string roundTrip = json5::ToString(obj);
+    std::string roundTrip = json5::ToString(obj);
     EXPECT_EQ(roundTrip, jsonStr);
   }
 }
@@ -728,8 +732,8 @@ TEST(Json5, Tuple)
 /////////////////////////////////////////////////////////////////////////////////////////
 TEST(Json5, NullsInString)
 {
-  string expected = "\"This is a str with a \\u0000 in it\"\n";
-  string decoded;
+  std::string expected = "\"This is a str with a \\u0000 in it\"\n";
+  std::string decoded;
   json5::Error err = json5::FromString(expected, decoded);
   EXPECT_FALSE(err);
   EXPECT_EQ(decoded, "This is a str with a \0 in it"sv);
@@ -747,7 +751,7 @@ TEST(Json5, NullsInString)
   EXPECT_FALSE(err);
   EXPECT_EQ(decoded, "This is a str with a \0 in it"sv);
 
-  string roundTrip = json5::ToString(decoded);
+  std::string roundTrip = json5::ToString(decoded);
   EXPECT_EQ(roundTrip, expected);
 }
 
@@ -762,11 +766,11 @@ TEST(Json5, FormatterRestore)
     true,
     nullptr,
   };
-  string expected = R"'({"displayTitle":"Fran\u00e7ais (AAC Stereo)","extendedDisplayTitle":"Fran\u00e7ais (AAC Stereo)","samplingRate":48000})'";
+  std::string expected = R"'({"displayTitle":"Fran\u00e7ais (AAC Stereo)","extendedDisplayTitle":"Fran\u00e7ais (AAC Stereo)","samplingRate":48000})'";
   json5::Document doc;
   json5::Error err = json5::FromString(expected, doc);
   EXPECT_FALSE(err);
 
-  string roundTrip = json5::ToString(doc, JSONCompatWriteParams);
+  std::string roundTrip = json5::ToString(doc, JSONCompatWriteParams);
   EXPECT_EQ(roundTrip, expected);
 }

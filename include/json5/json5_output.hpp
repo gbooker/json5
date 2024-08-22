@@ -171,7 +171,7 @@ namespace json5
             // Save stream state that we are going to modify to restore afterwards
             // Note: std::setw's change is reset after the << with a numeric type so it doesn't need to be saved
             //
-            ios_base::fmtflags flags = m_os.flags();
+            std::ios_base::fmtflags flags = m_os.flags();
             std::basic_ios<char>::char_type fill = m_os.fill();
 
             m_os << "\\u" << std::hex << std::setfill('0') << std::setw(4) << ch;
@@ -296,7 +296,7 @@ namespace json5
     const WriterParams& m_wp;
 
     bool m_firstElement = false;
-    vector<bool> m_firstElementStack;
+    std::vector<bool> m_firstElementStack;
     int m_depth = 0;
     const char* m_kvSeparator = ": ";
     const char* m_eol;

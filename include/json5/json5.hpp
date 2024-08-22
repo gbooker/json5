@@ -316,9 +316,9 @@ namespace json5
   class IndependentValue
   {
   public:
-    using Map = map<string, IndependentValue, std::less<>>;
-    using Array = vector<IndependentValue>;
-    using ValueType = std::variant<std::monostate, bool, double, string, Map, Array>;
+    using Map = std::map<std::string, IndependentValue, std::less<>>;
+    using Array = std::vector<IndependentValue>;
+    using ValueType = std::variant<std::monostate, bool, double, std::string, Map, Array>;
 
     ValueType value;
 
