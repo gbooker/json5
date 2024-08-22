@@ -5,6 +5,40 @@
 #include "include/json5/json5_output.hpp"
 #include "include/json5/json5_reflect.hpp"
 
+/////////////////////////////////////////////////////////////////////////////////////////
+// Uncomment if you want to run this standalone
+// #define DEFINE_MAIN
+
+#ifdef DEFINE_MAIN
+#if defined(_MSC_VER) && GTEST_LINKED_AS_SHARED_LIBRARY
+int main(int argc, char **argv)
+#else
+GTEST_API_ int main(int argc, char **argv)
+#endif
+{
+  printf("Running main() from gtest_main.cc\n");
+  testing::InitGoogleTest(&argc, argv);
+  int result = RUN_ALL_TESTS();
+
+  // Ensure the output is actually printed
+  fflush(stdout);
+  fflush(stderr);
+  _Exit(result);
+}
+
+#ifdef _WIN32
+
+void PROGRESS_DisplayDialog(const char* message) {}
+void PROGRESS_UpdateProcess(int percentComplete) {}
+
+void SERVER_StopServer() {}
+void SERVER_ShowErrorDialogAndExit(int titleId, int textId) {}
+
+#endif
+
+#endif // DEFINE_MAIN
+
+/////////////////////////////////////////////////////////////////////////////////////////
 constexpr json5::WriterParams JSONCompatWriteParams {
   "",
   "",
