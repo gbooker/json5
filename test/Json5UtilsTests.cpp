@@ -252,19 +252,6 @@ TEST(Json5, LowLevelReflection)
     EXPECT_EQ(m, expected);
   }
 
-  {
-    std::multimap<string, string, ASCIICaseInsensitiveComparator> m;
-    json5::ReflectionBuilder builder(m);
-    json5::Error err = FromString("{\"First\":[\"1\", \"2\"],\"Second\":[\"3\"]}", (json5::Builder&)builder);
-    EXPECT_FALSE(err);
-    std::multimap<string, string, ASCIICaseInsensitiveComparator> expected = {
-      {"First", "1"},
-      {"First", "2"},
-      {"Second", "3"},
-    };
-    EXPECT_EQ(m, expected);
-  }
-
   // {
   //   MyEnum e;
   //   json5::ReflectionBuilder builder(e);
@@ -739,19 +726,6 @@ TEST(Json5, NullsInString)
 {
   std::string expected = "\"This is a str with a \\u0000 in it\"\n";
   std::string decoded;
-  json5::Error err = json5::FromString(expected, decoded);
-  EXPECT_FALSE(err);
-  EXPECT_EQ(decoded, "This is a str with a \0 in it"sv);
-
-  string roundTrip = json5::ToString(decoded);
-  EXPECT_EQ(roundTrip, expected);
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////
-TEST(Json5, NullsInString)
-{
-  string expected = "\"This is a str with a \\u0000 in it\"\n";
-  string decoded;
   json5::Error err = json5::FromString(expected, decoded);
   EXPECT_FALSE(err);
   EXPECT_EQ(decoded, "This is a str with a \0 in it"sv);
