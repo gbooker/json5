@@ -788,3 +788,16 @@ TEST(Json5, FormatterRestore)
   std::string roundTrip = json5::ToString(doc, JSONCompatWriteParams);
   EXPECT_EQ(roundTrip, expected);
 }
+
+/////////////////////////////////////////////////////////////////////////////////////////
+TEST(Json5, StringLength)
+{
+  std::string expected = R"'("Fran\u00e7ais")'";
+  std::string value;
+  json5::Error err = json5::FromString(expected, value);
+  EXPECT_FALSE(err);
+  EXPECT_EQ(value, "Français");
+
+  std::string roundTrip = json5::ToString<std::string>(value, JSONCompatWriteParams);
+  EXPECT_EQ(roundTrip, expected);
+}

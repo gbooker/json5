@@ -129,34 +129,39 @@ namespace json5
         else if (uint8_t(str[0]) >= 128 && escapeUnicode)
         {
           uint32_t ch = 0;
+          size_t additionalReadCharacters = 0;
 
-          if ((*str & 0b1110'0000u) == 0b1100'0000u)
+          if ((*str & 0b1110'0000u) == 0b1100'0000u && len > 0)
           {
             ch |= ((*str++) & 0b0001'1111u) << 6;
             ch |= ((*str++) & 0b0011'1111u);
+            additionalReadCharacters = 1;
           }
-          else if ((*str & 0b1111'0000u) == 0b1110'0000u)
+          else if ((*str & 0b1111'0000u) == 0b1110'0000u && len > 1)
           {
             ch |= ((*str++) & 0b0000'1111u) << 12;
             ch |= ((*str++) & 0b0011'1111u) << 6;
             ch |= ((*str++) & 0b0011'1111u);
+            additionalReadCharacters = 2;
           }
-          else if ((*str & 0b1111'1000u) == 0b1111'0000u)
+          else if ((*str & 0b1111'1000u) == 0b1111'0000u && len > 2)
           {
             ch |= ((*str++) & 0b0000'0111u) << 18;
             ch |= ((*str++) & 0b0011'1111u) << 12;
             ch |= ((*str++) & 0b0011'1111u) << 6;
             ch |= ((*str++) & 0b0011'1111u);
+            additionalReadCharacters = 3;
           }
-          else if ((*str & 0b1111'1100u) == 0b1111'1000u)
+          else if ((*str & 0b1111'1100u) == 0b1111'1000u && len > 3)
           {
             ch |= ((*str++) & 0b0000'0011u) << 24;
             ch |= ((*str++) & 0b0011'1111u) << 18;
             ch |= ((*str++) & 0b0011'1111u) << 12;
             ch |= ((*str++) & 0b0011'1111u) << 6;
             ch |= ((*str++) & 0b0011'1111u);
+            additionalReadCharacters = 4;
           }
-          else if ((*str & 0b1111'1110u) == 0b1111'1100u)
+          else if ((*str & 0b1111'1110u) == 0b1111'1100u && len > 4)
           {
             ch |= ((*str++) & 0b0000'0001u) << 30;
             ch |= ((*str++) & 0b0011'1111u) << 24;
@@ -164,7 +169,12 @@ namespace json5
             ch |= ((*str++) & 0b0011'1111u) << 12;
             ch |= ((*str++) & 0b0011'1111u) << 6;
             ch |= ((*str++) & 0b0011'1111u);
+            additionalReadCharacters = 5;
           }
+
+          // If we have a length, we need to decremented the length by the additional characters we read
+          if (len != std::numeric_limits<size_t>::max())
+            len -= additionalReadCharacters;
 
           if (ch <= std::numeric_limits<uint16_t>::max())
           {
