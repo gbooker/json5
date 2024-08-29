@@ -295,6 +295,19 @@ TEST(Json5, LowLevelReflection)
     EXPECT_EQ(m, expected);
   }
 
+  {
+    std::multimap<std::string, std::string> m;
+    json5::ReflectionBuilder builder(m);
+    json5::Error err = FromString("{\"First\":[\"1\", \"2\"],\"Second\":[\"3\"]}", (json5::Builder&)builder);
+    EXPECT_FALSE(err);
+    std::multimap<std::string, std::string> expected = {
+      {"First", "1"},
+      {"First", "2"},
+      {"Second", "3"},
+    };
+    EXPECT_EQ(m, expected);
+  }
+
   // {
   //   MyEnum e;
   //   json5::ReflectionBuilder builder(e);
@@ -800,4 +813,25 @@ TEST(Json5, StringLength)
 
   std::string roundTrip = json5::ToString<std::string>(value, JSONCompatWriteParams);
   EXPECT_EQ(roundTrip, expected);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////
+TEST(Json5, Multimap)
+{
+  std::multimap<std::string, std::string> original = {
+    {"a", "first"},
+    {"a", "second"},
+    {"b", "la"},
+    {"b", "lade"},
+    {"b", "ladeda"},
+    {"c", "single"}};
+
+  std::string json = json5::ToString(original, JSONCompatWriteParams);
+  EXPECT_EQ(json, R"({"a":["first","second"],"b":["la","lade","ladeda"],"c":["single"]})");
+
+  std::multimap<std::string, std::string> roundTrip;
+  json5::Error error = json5::FromString(json, roundTrip);
+  EXPECT_EQ(error.type, json5::Error::None);
+
+  EXPECT_EQ(roundTrip, original);
 }

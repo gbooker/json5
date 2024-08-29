@@ -286,6 +286,43 @@ namespace json5
     };
 
     //---------------------------------------------------------------------------------------------------------------------
+    template <typename K, typename T, typename C, typename A>
+    struct ReflectionWriter<std::multimap<K, T, C, A>>
+    {
+      static inline void Write(Writer& w, const std::multimap<K, T, C, A>& in)
+      {
+        w.beginObject();
+
+        if (!in.empty())
+        {
+          std::optional<std::reference_wrapper<const K>> lastKey;
+
+          for (const auto& pair : in)
+          {
+            if (!lastKey || lastKey->get() != pair.first)
+            {
+              if (lastKey)
+                w.endArray();
+
+              w.beginObjectElement();
+              w.writeObjectKey(pair.first);
+              w.beginArray();
+
+              lastKey = std::reference_wrapper<const K>(pair.first);
+            }
+
+            w.beginArrayElement();
+            ReflectionWriter<T>::Write(w, pair.second);
+          }
+
+          w.endArray();
+        }
+
+        w.endObject();
+      }
+    };
+
+    //---------------------------------------------------------------------------------------------------------------------
     template <>
     struct ReflectionWriter<Document>
     {
@@ -806,6 +843,43 @@ namespace json5
     {
     public:
       using MapReflector<std::unordered_map<K, T, P, A>, K, T>::MapReflector;
+    };
+
+    template <typename K, typename T, typename C, typename A>
+    class Reflector<std::multimap<K, T, C, A>> : public RefReflector<std::multimap<K, T, C, A>>
+    {
+    public:
+      using Type = std::multimap<K, T, C, A>;
+      using RefReflector<Type>::RefReflector;
+      using RefReflector<Type>::m_obj;
+
+      Error::Type getNonTypeError() override { return Error::ObjectExpected; }
+      bool allowObject() override { return true; }
+      std::unique_ptr<BaseReflector> getReflectorForKey(std::string key) override
+      {
+        insertLast();
+        m_lastKey = std::move(key);
+        return std::make_unique<Reflector<std::vector<T>>>(m_insertValues);
+      }
+
+      Error::Type complete() override
+      {
+        insertLast();
+        return Error::None;
+      }
+
+      void insertLast()
+      {
+        for (T& value : m_insertValues)
+          m_obj.insert({m_lastKey, std::move(value)});
+
+        m_lastKey.clear();
+        m_insertValues.clear();
+      }
+
+    protected:
+      K m_lastKey;
+      std::vector<T> m_insertValues;
     };
 
     class DocumentBuilderReflector : public RefReflector<DocumentBuilder>
