@@ -553,7 +553,7 @@ namespace json5
 
       static T& MakeInnerRef(OptType& opt)
       {
-        opt = std::optional<T>(std::in_place, T());
+        opt = std::optional<T>(std::in_place);
         return *opt;
       }
 
