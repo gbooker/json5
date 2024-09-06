@@ -48,6 +48,12 @@ namespace json5
   namespace detail
   {
 
+    struct IvarJsonNameSubstitution
+    {
+      std::string_view ivarName;
+      std::string_view jsonName;
+    };
+
     struct WrapperHelper
     {
       // Several constexpr functions which will not actually be compiled because they only compute constants in the ClassWrapper below
@@ -137,6 +143,27 @@ namespace json5
 
         return ret;
       }
+
+      template <size_t Count>
+      static constexpr std::array<std::string_view, Count> SubstituteNames(std::array<std::string_view, Count> names, const std::initializer_list<IvarJsonNameSubstitution>& substitutions)
+      {
+        for (const IvarJsonNameSubstitution& substitution : substitutions)
+        {
+          for (std::string_view& name : names)
+          {
+            if (name == substitution.ivarName)
+              name = substitution.jsonName;
+          }
+        }
+
+        return names;
+      }
+    };
+
+    template <typename T>
+    struct NameSubstitution
+    {
+      static constexpr std::initializer_list<IvarJsonNameSubstitution> Substitutions = {};
     };
 
     template <typename T>
@@ -147,7 +174,7 @@ namespace json5
       static constexpr std::string_view NamesStr = Json5Access<T>::GetNames();
       static constexpr size_t NameCount = WrapperHelper::CommaCount(NamesStr) + 1;
       static constexpr std::array<size_t, NameCount - 1> Commas = WrapperHelper::GetCommas<NameCount - 1>(NamesStr);
-      static constexpr std::array<std::string_view, NameCount> Names = WrapperHelper::GetNames<NameCount>(Commas, NamesStr);
+      static constexpr std::array<std::string_view, NameCount> Names = WrapperHelper::SubstituteNames(WrapperHelper::GetNames<NameCount>(Commas, NamesStr), NameSubstitution<T>::Substitutions);
 
       // Some sanity checks
       static_assert(NameCount == std::tuple_size_v<decltype(Json5Access<T>::GetTie(std::declval<T&>()))>);

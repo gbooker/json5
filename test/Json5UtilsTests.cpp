@@ -835,3 +835,42 @@ TEST(Json5, Multimap)
 
   EXPECT_EQ(roundTrip, original);
 }
+
+/////////////////////////////////////////////////////////////////////////////////////////
+struct NameContainer
+{
+  std::string longName;
+  bool isPublic = false;
+  std::string shortName;
+
+  JSON5_MEMBERS(longName, isPublic, shortName);
+};
+
+namespace json5::detail
+{
+  template <>
+  struct NameSubstitution<NameContainer>
+  {
+    static constexpr std::initializer_list<IvarJsonNameSubstitution> Substitutions = {
+      {"longName", "long"},
+      {"isPublic", "public"},
+      {"shortName", "short"},
+    };
+  };
+} // namespace json5::detail
+
+/////////////////////////////////////////////////////////////////////////////////////////
+TEST(Json5, ReadingReservedName)
+{
+  std::string expected = R"({"long":"William Q. Smith","public":true,"short":"Bill"})";
+  NameContainer bill;
+  json5::Error error = json5::FromString(expected, bill);
+  EXPECT_EQ(error.type, json5::Error::None);
+
+  EXPECT_EQ(bill.isPublic, true);
+  EXPECT_EQ(bill.longName, "William Q. Smith");
+  EXPECT_EQ(bill.shortName, "Bill");
+
+  std::string roundTrip = json5::ToString(bill, JSONCompatWriteParams);
+  EXPECT_EQ(roundTrip, expected);
+}
