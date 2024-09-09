@@ -851,10 +851,12 @@ namespace json5::detail
   template <>
   struct NameSubstitution<NameContainer>
   {
-    static constexpr std::initializer_list<IvarJsonNameSubstitution> Substitutions = {
-      {"longName", "long"},
-      {"isPublic", "public"},
-      {"shortName", "short"},
+    static constexpr std::array<IvarJsonNameSubstitution, 3> Substitutions = {
+      {
+        {"longName", "long"},
+        {"isPublic", "public"},
+        {"shortName", "short"},
+      },
     };
   };
 } // namespace json5::detail

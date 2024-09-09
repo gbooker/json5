@@ -144,15 +144,15 @@ namespace json5
         return ret;
       }
 
-      template <size_t Count>
-      static constexpr std::array<std::string_view, Count> SubstituteNames(std::array<std::string_view, Count> names, const std::initializer_list<IvarJsonNameSubstitution>& substitutions)
+      template <size_t Count, size_t SubstitutionCount>
+      static constexpr std::array<std::string_view, Count> SubstituteNames(std::array<std::string_view, Count> names, std::array<IvarJsonNameSubstitution, SubstitutionCount> substitutions)
       {
-        for (const IvarJsonNameSubstitution& substitution : substitutions)
+        for (size_t substitutionIndex = 0; substitutionIndex < SubstitutionCount; substitutionIndex++)
         {
-          for (std::string_view& name : names)
+          for (size_t nameIndex = 0; nameIndex < Count; nameIndex++)
           {
-            if (name == substitution.ivarName)
-              name = substitution.jsonName;
+            if (names[nameIndex] == substitutions[substitutionIndex].ivarName)
+              names[nameIndex] = substitutions[substitutionIndex].jsonName;
           }
         }
 
@@ -163,7 +163,7 @@ namespace json5
     template <typename T>
     struct NameSubstitution
     {
-      static constexpr std::initializer_list<IvarJsonNameSubstitution> Substitutions = {};
+      static constexpr std::array<IvarJsonNameSubstitution, 0> Substitutions = {};
     };
 
     template <typename T>
