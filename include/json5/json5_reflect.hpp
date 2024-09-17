@@ -3,6 +3,8 @@
 #include <array>
 #include <fstream>
 #include <map>
+#include <math.h>
+#include <optional>
 #include <unordered_map>
 
 #include "json5_builder.hpp"

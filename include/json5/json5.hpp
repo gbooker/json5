@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <cstring>
 #include <string>
+#include <variant>
 #include <vector>
 
 #include "json5_base.hpp"
