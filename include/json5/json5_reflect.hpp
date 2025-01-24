@@ -423,7 +423,7 @@ namespace json5
     inline void WriteTuple(Writer& w, const std::tuple<Types...>& t)
     {
       const auto& in = std::get<Index>(t);
-      using Type = std::remove_const_t<std::remove_reference_t<decltype(in)>>;
+      using Type = std::decay_t<decltype(in)>;
 
       WriteTupleValue<Type>(w, ClassWrapper<T>::Names[Index], in);
       if constexpr (Index + 1 != sizeof...(Types))
