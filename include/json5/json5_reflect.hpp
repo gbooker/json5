@@ -222,6 +222,13 @@ namespace json5
     };
 
     //---------------------------------------------------------------------------------------------------------------------
+    template <>
+    struct ReflectionWriter<std::monostate>
+    {
+      static inline void Write(Writer& w, std::monostate in) { w.writeNull(); }
+    };
+
+    //---------------------------------------------------------------------------------------------------------------------
     template <typename T>
     struct ReflectionWriter<T, std::enable_if_t<std::is_arithmetic_v<T>>>
     {
@@ -608,6 +615,15 @@ namespace json5
 
         return std::make_unique<IgnoreReflector>();
       }
+    };
+
+    template <>
+    class Reflector<std::monostate> : public RefReflector<std::monostate>
+    {
+    public:
+      using RefReflector<std::monostate>::RefReflector;
+      Error::Type getNonTypeError() override { return Error::NullExpected; }
+      Error::Type setValue(std::nullptr_t) override { return Error::None; }
     };
 
     template <typename T>

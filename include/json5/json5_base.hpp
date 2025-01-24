@@ -139,6 +139,7 @@ namespace json5
       InvalidEscapeSeq, // invalid or unsupported string escape \ sequence
       CommaExpected,    // expected comma ','
       ColonExpected,    // expected color ':'
+      NullExpected,     // expected literal "null"
       BooleanExpected,  // expected boolean literal "true" or "false"
       NumberExpected,   // expected number
       StringExpected,   // expected string "..."
@@ -159,6 +160,7 @@ namespace json5
         "invalid escape sequence",
         "comma expected",
         "colon expected",
+        "null expected",
         "boolean expected",
         "number expected",
         "string expected",
