@@ -359,6 +359,17 @@ namespace json5
     };
 
     //---------------------------------------------------------------------------------------------------------------------
+    template <typename... Types>
+    class ReflectionWriter<std::variant<Types...>>
+    {
+    public:
+      static inline void Write(Writer& w, const std::variant<Types...>& in)
+      {
+        std::visit([&w](const auto& value) { ReflectionWriter<std::decay_t<decltype(value)>>::Write(w, value); }, in);
+      }
+    };
+
+    //---------------------------------------------------------------------------------------------------------------------
     template <>
     struct ReflectionWriter<Document>
     {
@@ -910,6 +921,132 @@ namespace json5
       using MapReflector<std::unordered_map<K, T, P, A>, K, T>::MapReflector;
     };
 
+    // Reads into a variant using the first type that can take the type of value.
+    // So, if you have a std::variant<ObjType1, ObjType2> where both are JSON objects,
+    // it will always attempt to read the object into ObjType1.
+    //
+    template <typename... Types>
+    class Reflector<std::variant<Types...>> : public RefReflector<std::variant<Types...>>
+    {
+    public:
+      using VariantType = std::variant<Types...>;
+      using RefReflector<VariantType>::RefReflector;
+      using RefReflector<VariantType>::m_obj;
+
+      static bool AllowsType(ValueType type) { return VariantAllowsType<>(type); }
+      Error::Type getNonTypeError() override { return GetNonTypeError<Types...>(); }
+
+      Error::Type setValue(double number) override
+      {
+        if (!setupReflector<>(ValueType::Number))
+          return getNonTypeError();
+
+        return m_reflector->setValue(number);
+      }
+
+      Error::Type setValue(bool boolean) override
+      {
+        if (!setupReflector<>(ValueType::Boolean))
+          return getNonTypeError();
+
+        return m_reflector->setValue(boolean);
+      }
+
+      Error::Type setValue(std::nullptr_t) override
+      {
+        if (!setupReflector<>(ValueType::Null))
+          return getNonTypeError();
+
+        return m_reflector->setValue(nullptr);
+      }
+
+      bool allowString() override
+      {
+        if (!setupReflector<>(ValueType::String))
+          return false;
+
+        return m_reflector->allowString();
+      }
+
+      void setValue(std::string str) override { m_reflector->setValue(std::move(str)); }
+
+      bool allowObject() override
+      {
+        if (!setupReflector<>(ValueType::Object))
+          return false;
+
+        return m_reflector->allowObject();
+      }
+
+      std::unique_ptr<BaseReflector> getReflectorForKey(std::string key) override { return m_reflector->getReflectorForKey(std::move(key)); }
+
+      bool allowArray() override
+      {
+        if (!setupReflector<>(ValueType::Array))
+          return false;
+
+        return m_reflector->allowArray();
+      }
+
+      std::unique_ptr<BaseReflector> getReflectorInArray() override { return m_reflector->getReflectorInArray(); }
+
+      Error::Type complete() override { return m_reflector->complete(); }
+
+    protected:
+      template <size_t N = 0>
+      static bool VariantAllowsType(ValueType type)
+      {
+        if constexpr (N == std::variant_size_v<VariantType>)
+        {
+          return false;
+        }
+        else
+        {
+          using Type = std::decay_t<decltype(std::get<N>(VariantType()))>;
+          if (Reflector<Type>::AllowsType(type))
+            return true;
+
+          return VariantAllowsType<N + 1>(type);
+        }
+      }
+
+      template <typename FirstType, typename... RemainingTypes>
+      static Error::Type GetNonTypeError()
+      {
+        FirstType dummy;
+        return Reflector<FirstType>(dummy).getNonTypeError();
+      }
+
+      template <typename Type>
+      bool makeReflector(ValueType type)
+      {
+        if (!Reflector<Type>::AllowsType(type))
+          return false;
+
+        m_obj = VariantType(std::in_place_type<Type>);
+        m_reflector = std::make_unique<Reflector<Type>>(std::get<Type>(m_obj));
+        return true;
+      }
+
+      template <size_t N = 0>
+      bool setupReflector(ValueType type)
+      {
+        if constexpr (N == std::variant_size_v<VariantType>)
+        {
+          return false;
+        }
+        else
+        {
+          using Type = std::decay_t<decltype(std::get<N>(VariantType()))>;
+          if (makeReflector<Type>(type))
+            return true;
+
+          return setupReflector<N + 1>(type);
+        }
+      }
+
+      std::unique_ptr<BaseReflector> m_reflector;
+    };
     template <typename K, typename T, typename C, typename A>
     class Reflector<std::multimap<K, T, C, A>> : public RefReflector<std::multimap<K, T, C, A>>
     {

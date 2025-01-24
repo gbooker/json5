@@ -876,3 +876,104 @@ TEST(Json5, ReadingReservedName)
   std::string roundTrip = json5::ToString(bill, JSONCompatWriteParams);
   EXPECT_EQ(roundTrip, expected);
 }
+
+/////////////////////////////////////////////////////////////////////////////////////////
+TEST(Json5, Variant)
+{
+  using IdType = std::variant<int, std::string>;
+  struct SomethingWithId
+  {
+    IdType id;
+    int count;
+
+    JSON5_MEMBERS(id, count);
+  };
+
+  {
+    std::string expected = R"([{"id":5,"count":6},{"id":"7","count":8}])";
+    std::vector<SomethingWithId> somethings;
+    json5::Error error = json5::FromString(expected, somethings);
+    EXPECT_EQ(error.type, json5::Error::None);
+
+    ASSERT_EQ(somethings.size(), 2);
+    EXPECT_EQ(somethings[0].id, IdType(5));
+    EXPECT_EQ(somethings[0].count, 6);
+    EXPECT_EQ(somethings[1].id, IdType("7"));
+    EXPECT_EQ(somethings[1].count, 8);
+
+    std::string roundTrip = json5::ToString(somethings, JSONCompatWriteParams);
+    EXPECT_EQ(roundTrip, expected);
+  }
+
+  {
+    std::vector<SomethingWithId> somethings;
+    std::string invalid = R"([{"id":[]}])";
+    json5::Error error = json5::FromString(invalid, somethings);
+    EXPECT_EQ(error.type, json5::Error::NumberExpected);
+  }
+
+  {
+    std::vector<SomethingWithId> somethings;
+    std::string invalid = R"([{"id":true}])";
+    json5::Error error = json5::FromString(invalid, somethings);
+    EXPECT_EQ(error.type, json5::Error::NumberExpected);
+  }
+
+  {
+    std::vector<SomethingWithId> somethings;
+    std::string invalid = R"([{"id":{}}}])";
+    json5::Error error = json5::FromString(invalid, somethings);
+    EXPECT_EQ(error.type, json5::Error::NumberExpected);
+  }
+
+  {
+    std::vector<SomethingWithId> somethings;
+    std::string invalid = R"([{"id":null}}])";
+    json5::Error error = json5::FromString(invalid, somethings);
+    EXPECT_EQ(error.type, json5::Error::NumberExpected);
+  }
+
+  using Nested = std::variant<std::monostate, IdType>;
+  struct SomethingWithNested
+  {
+    Nested id;
+    JSON5_MEMBERS(id);
+  };
+
+  {
+    std::string expected = R"([{"id":5},{"id":"7"},{"id":null}])";
+    std::vector<SomethingWithNested> somethings;
+    json5::Error error = json5::FromString(expected, somethings);
+    EXPECT_EQ(error.type, json5::Error::None);
+
+    ASSERT_EQ(somethings.size(), 3);
+    EXPECT_EQ(somethings[0].id, Nested(5));
+    EXPECT_EQ(somethings[1].id, Nested("7"));
+    EXPECT_EQ(somethings[2].id, Nested());
+
+    std::string roundTrip = json5::ToString(somethings, JSONCompatWriteParams);
+    EXPECT_EQ(roundTrip, expected);
+  }
+
+  struct SomethingWithOptNested
+  {
+    std::optional<Nested> id;
+    JSON5_MEMBERS(id);
+  };
+
+  {
+    std::string expected = R"([{"id":5},{"id":"7"},{"id":null},{}])";
+    std::vector<SomethingWithOptNested> somethings;
+    json5::Error error = json5::FromString(expected, somethings);
+    EXPECT_EQ(error.type, json5::Error::None);
+
+    ASSERT_EQ(somethings.size(), 4);
+    EXPECT_EQ(somethings[0].id, Nested(5));
+    EXPECT_EQ(somethings[1].id, Nested("7"));
+    EXPECT_EQ(somethings[2].id, Nested());
+    EXPECT_FALSE(somethings[3].id.has_value());
+
+    std::string roundTrip = json5::ToString(somethings, JSONCompatWriteParams);
+    EXPECT_EQ(roundTrip, expected);
+  }
+}
