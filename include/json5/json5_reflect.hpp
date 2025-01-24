@@ -527,6 +527,8 @@ namespace json5
     class BaseReflector
     {
     public:
+      static bool AllowsType(ValueType type) { return false; }
+
       virtual ~BaseReflector() {}
       virtual Error::Type getNonTypeError() = 0;
       virtual Error::Type setValue(double number) { return getNonTypeError(); }
@@ -580,6 +582,7 @@ namespace json5
       using RefReflector<T>::RefReflector;
       using RefReflector<T>::m_obj;
 
+      static bool AllowsType(ValueType type) { return type == ValueType::Object; }
       Error::Type getNonTypeError() override { return Error::ObjectExpected; }
 
       bool allowObject() override { return true; }
@@ -622,6 +625,7 @@ namespace json5
     {
     public:
       using RefReflector<std::monostate>::RefReflector;
+      static bool AllowsType(ValueType type) { return type == ValueType::Null; }
       Error::Type getNonTypeError() override { return Error::NullExpected; }
       Error::Type setValue(std::nullptr_t) override { return Error::None; }
     };
@@ -644,6 +648,7 @@ namespace json5
         , m_inner(MakeInnerRef(obj))
       {}
 
+      static bool AllowsType(ValueType type) { return Reflector<T>::AllowsType(type); }
       Error::Type getNonTypeError() override { return m_inner.getNonTypeError(); }
       Error::Type setValue(double number) override { return m_inner.setValue(number); }
       Error::Type setValue(bool boolean) override { return m_inner.setValue(boolean); }
@@ -676,6 +681,7 @@ namespace json5
       using RefReflector<T>::m_obj;
       using RefReflector<T>::setValue;
 
+      static bool AllowsType(ValueType type) { return type == ValueType::Number || type == ValueType::String; }
       Error::Type getNonTypeError() override { return Error::NumberExpected; }
       Error::Type setValue(double number) override
       {
@@ -715,6 +721,14 @@ namespace json5
       using RefReflector<T>::m_obj;
       using RefReflector<T>::setValue;
 
+      static bool AllowsType(ValueType type)
+      {
+        if constexpr (!std::is_integral_v<T>)
+          return type == ValueType::Number || type == ValueType::Null;
+
+        return type == ValueType::Number;
+      }
+
       Error::Type getNonTypeError() override { return Error::NumberExpected; }
       Error::Type setValue(std::nullptr_t) override
       {
@@ -744,6 +758,7 @@ namespace json5
       using RefReflector<bool>::m_obj;
       using RefReflector<bool>::setValue;
 
+      static bool AllowsType(ValueType type) { return type == ValueType::Boolean; }
       Error::Type getNonTypeError() override { return Error::BooleanExpected; }
       Error::Type setValue(bool boolean) override
       {
@@ -760,6 +775,7 @@ namespace json5
         : m_obj(std::move(ref))
       {}
 
+      static bool AllowsType(ValueType type) { return type == ValueType::Boolean; }
       Error::Type getNonTypeError() override { return Error::BooleanExpected; }
       Error::Type setValue(bool boolean) override
       {
@@ -779,6 +795,7 @@ namespace json5
       using RefReflector<std::string>::m_obj;
       using RefReflector<std::string>::setValue;
 
+      static bool AllowsType(ValueType type) { return type == ValueType::String; }
       Error::Type getNonTypeError() override { return Error::StringExpected; }
       bool allowString() override { return true; }
       void setValue(std::string str) override { m_obj = std::move(str); }
@@ -796,6 +813,7 @@ namespace json5
         m_obj.clear();
       }
 
+      static bool AllowsType(ValueType type) { return type == ValueType::Array; }
       Error::Type getNonTypeError() override { return Error::ArrayExpected; }
       bool allowArray() override { return true; }
       std::unique_ptr<BaseReflector> getReflectorInArray() override
@@ -815,6 +833,7 @@ namespace json5
       using RefReflector<ContainerType>::RefReflector;
       using RefReflector<ContainerType>::m_obj;
 
+      static bool AllowsType(ValueType type) { return type == ValueType::Array; }
       Error::Type getNonTypeError() override { return Error::ArrayExpected; }
       bool allowArray() override { return true; }
       std::unique_ptr<BaseReflector> getReflectorInArray() override
@@ -868,6 +887,7 @@ namespace json5
         m_obj.clear();
       }
 
+      static bool AllowsType(ValueType type) { return type == ValueType::Object; }
       Error::Type getNonTypeError() override { return Error::ObjectExpected; }
       bool allowObject() override { return true; }
       std::unique_ptr<BaseReflector> getReflectorForKey(std::string key) override
@@ -898,6 +918,7 @@ namespace json5
       using RefReflector<Type>::RefReflector;
       using RefReflector<Type>::m_obj;
 
+      static bool AllowsType(ValueType type) { return type == ValueType::Object; }
       Error::Type getNonTypeError() override { return Error::ObjectExpected; }
       bool allowObject() override { return true; }
       std::unique_ptr<BaseReflector> getReflectorForKey(std::string key) override
@@ -1029,6 +1050,7 @@ namespace json5
         , m_builderReflector(m_builder, false, false, true)
       {}
 
+      static bool AllowsType(ValueType type) { return true; }
       Error::Type getNonTypeError() override { return m_builderReflector.getNonTypeError(); }
       Error::Type setValue(double number) override { return m_builderReflector.setValue(number); }
       Error::Type setValue(bool boolean) override { return m_builderReflector.setValue(boolean); }
@@ -1055,6 +1077,7 @@ namespace json5
       using RefReflector<IndependentValue>::RefReflector;
       using RefReflector<IndependentValue>::m_obj;
 
+      static bool AllowsType(ValueType type) { return true; }
       Error::Type getNonTypeError() override { return Error::ObjectExpected; }
       Error::Type setValue(double number) override
       {
@@ -1164,6 +1187,7 @@ namespace json5
         : m_components(obj...)
       {}
 
+      static bool AllowsType(ValueType type) { return type == ValueType::Array; }
       Error::Type getNonTypeError() override { return Error::ArrayExpected; }
       bool allowArray() override { return true; }
       std::unique_ptr<BaseReflector> getReflectorInArray() override
