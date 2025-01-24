@@ -207,7 +207,6 @@ namespace json5
     void WriteMap(Writer& w, const T& in);
     template <typename T>
     void WriteEnum(Writer& w, T in);
-    void WriteIndependentValue(Writer& w, const IndependentValue& in);
 
     //---------------------------------------------------------------------------------------------------------------------
     template <typename T, typename Enable = void>
@@ -260,13 +259,6 @@ namespace json5
     struct ReflectionWriter<std::string>
     {
       static inline void Write(Writer& w, const std::string& in) { w.writeString(in); }
-    };
-
-    //---------------------------------------------------------------------------------------------------------------------
-    template <>
-    struct ReflectionWriter<IndependentValue>
-    {
-      static inline void Write(Writer& w, const IndependentValue& in) { WriteIndependentValue(w, in); }
     };
 
     //---------------------------------------------------------------------------------------------------------------------
@@ -367,6 +359,14 @@ namespace json5
       {
         std::visit([&w](const auto& value) { ReflectionWriter<std::decay_t<decltype(value)>>::Write(w, value); }, in);
       }
+    };
+
+    //---------------------------------------------------------------------------------------------------------------------
+    template <>
+    struct ReflectionWriter<IndependentValue>
+    {
+    public:
+      static inline void Write(Writer& w, const IndependentValue& value) { ReflectionWriter<IndependentValue::ValueType>::Write(w, value.value); }
     };
 
     //---------------------------------------------------------------------------------------------------------------------
@@ -518,19 +518,6 @@ namespace json5
     {
       if (!WriteEnumValue<T>(w, in))
         Write(w, std::underlying_type_t<T>(in)); // Not in table so fallback to underlying value
-    }
-
-    //---------------------------------------------------------------------------------------------------------------------
-    inline void WriteIndependentValue(Writer& w, const IndependentValue& in)
-    {
-      std::visit([&w](const auto& value) {
-        using T = std::decay_t<decltype(value)>;
-        if constexpr (std::is_same_v<T, std::monostate>)
-          w.writeNull();
-        else
-          Write(w, value);
-      },
-        in.value);
     }
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1208,65 +1195,12 @@ namespace json5
     };
 
     template <>
-    class Reflector<IndependentValue> : public RefReflector<IndependentValue>
+    class Reflector<IndependentValue> : public Reflector<IndependentValue::ValueType>
     {
     public:
-      using RefReflector<IndependentValue>::RefReflector;
-      using RefReflector<IndependentValue>::m_obj;
-
-      static bool AllowsType(ValueType type) { return true; }
-      Error::Type getNonTypeError() override { return Error::ObjectExpected; }
-      Error::Type setValue(double number) override
-      {
-        m_obj.value = number;
-        return Error::None;
-      }
-
-      Error::Type setValue(bool boolean) override
-      {
-        m_obj.value = boolean;
-        return Error::None;
-      }
-
-      Error::Type setValue(std::nullptr_t) override
-      {
-        m_obj.value = std::monostate();
-        return Error::None;
-      }
-
-      bool allowString() override { return true; }
-      void setValue(std::string str) override { m_obj.value = std::move(str); }
-
-      bool allowObject() override
-      {
-        m_obj.value = IndependentValue::Map();
-        return true;
-      }
-
-      std::unique_ptr<BaseReflector> getReflectorForKey(std::string key) override
-      {
-        if (auto* map = std::get_if<IndependentValue::Map>(&m_obj.value))
-          return std::make_unique<Reflector<IndependentValue>>((*map)[std::move(key)]);
-
-        throw std::logic_error("Attempt to get object item on non object value");
-      }
-
-      bool allowArray() override
-      {
-        m_obj.value = IndependentValue::Array();
-        return true;
-      }
-
-      std::unique_ptr<BaseReflector> getReflectorInArray() override
-      {
-        if (auto* array = std::get_if<IndependentValue::Array>(&m_obj.value))
-        {
-          array->push_back({});
-          return std::make_unique<Reflector<IndependentValue>>(array->back());
-        }
-
-        throw std::logic_error("Attempt to get array item on non array value");
-      }
+      explicit Reflector(IndependentValue& obj)
+        : Reflector<IndependentValue::ValueType>(obj.value)
+      {}
     };
 
     class BaseTupleComponent
