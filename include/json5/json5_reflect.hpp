@@ -362,6 +362,20 @@ namespace json5
     };
 
     //---------------------------------------------------------------------------------------------------------------------
+    template <typename T>
+    class ReflectionWriter<std::shared_ptr<T>>
+    {
+    public:
+      static inline void Write(Writer& w, const std::shared_ptr<T>& in)
+      {
+        if (in)
+          ReflectionWriter<T>::Write(w, *in);
+        else
+          w.writeNull();
+      }
+    };
+
+    //---------------------------------------------------------------------------------------------------------------------
     template <>
     struct ReflectionWriter<IndependentValue>
     {
@@ -434,6 +448,14 @@ namespace json5
     {
       if (in)
         WriteTupleValue<typename Type::value_type>(w, name, *in);
+    }
+
+    //---------------------------------------------------------------------------------------------------------------------
+    template <typename Type>
+    inline void WriteTupleValue(Writer& w, std::string_view name, const std::shared_ptr<typename Type::element_type>& in)
+    {
+      if (in)
+        WriteTupleValue<typename Type::element_type>(w, name, *in);
     }
 
     //---------------------------------------------------------------------------------------------------------------------
@@ -654,6 +676,51 @@ namespace json5
       {
         if (m_inner.setValue(nullptr) != Error::None)
           m_obj = std::nullopt;
+
+        return Error::None;
+      }
+
+      bool allowString() override { return m_inner.allowString(); }
+      void setValue(std::string str) override { m_inner.setValue(std::move(str)); }
+
+      bool allowObject() override { return m_inner.allowObject(); }
+      std::unique_ptr<BaseReflector> getReflectorForKey(std::string key) override { return m_inner.getReflectorForKey(std::move(key)); }
+      bool allowArray() override { return m_inner.allowArray(); }
+      std::unique_ptr<BaseReflector> getReflectorInArray() override { return m_inner.getReflectorInArray(); }
+      Error::Type complete() override { return m_inner.complete(); }
+
+    protected:
+      Reflector<T> m_inner;
+    };
+
+    template <typename T>
+    class Reflector<std::shared_ptr<T>> : public RefReflector<std::shared_ptr<T>>
+    {
+    public:
+      using PtrType = std::shared_ptr<T>;
+      using RefReflector<PtrType>::m_obj;
+
+      static T& MakeInnerRef(PtrType& ptr)
+      {
+        if (!ptr)
+          ptr = std::make_shared<T>();
+
+        return *ptr;
+      }
+
+      explicit Reflector(PtrType& obj)
+        : RefReflector<PtrType>(obj)
+        , m_inner(MakeInnerRef(obj))
+      {}
+
+      static bool AllowsType(ValueType type) { return Reflector<T>::AllowsType(type); }
+      Error::Type getNonTypeError() override { return m_inner.getNonTypeError(); }
+      Error::Type setValue(double number) override { return m_inner.setValue(number); }
+      Error::Type setValue(bool boolean) override { return m_inner.setValue(boolean); }
+      Error::Type setValue(std::nullptr_t) override
+      {
+        if (m_inner.setValue(nullptr) != Error::None)
+          m_obj.reset();
 
         return Error::None;
       }

@@ -977,3 +977,82 @@ TEST(Json5, Variant)
     EXPECT_EQ(roundTrip, expected);
   }
 }
+
+/////////////////////////////////////////////////////////////////////////////////////////
+TEST(Json5, SharedPtr)
+{
+  class SomeObject
+  {
+    public:
+      std::optional<int> id;
+      std::optional<string> identifier;
+
+      JSON5_MEMBERS(id, identifier);
+  };
+  DEFINE_SHARED(SomeObject);
+
+  struct SomeVectorOfSharedPtr
+  {
+    int mainId;
+    vector<SomeObjectPtr> SomeObjectPointer; // NOLINT(readability-identifier-naming)
+
+    JSON5_MEMBERS(mainId, SomeObjectPointer);
+  };
+
+  std::string expected = R"([{"mainId":5,"SomeObjectPointer":[{"id":1,"identifier":"one"},{"id":2,"identifier":"two"}]}])";
+  std::vector<SomeVectorOfSharedPtr> somethingVector;
+  json5::Error error = json5::FromString(expected, somethingVector);
+  EXPECT_EQ(error.type, json5::Error::None);
+
+  ASSERT_EQ(somethingVector.size(), 1);
+  EXPECT_EQ(somethingVector[0].mainId, 5);
+
+  ASSERT_EQ(somethingVector[0].SomeObjectPointer.size(), 2);
+  ASSERT_TRUE(somethingVector[0].SomeObjectPointer[0]->id.has_value());
+  ASSERT_TRUE(somethingVector[0].SomeObjectPointer[0]->identifier.has_value());
+  EXPECT_EQ(somethingVector[0].SomeObjectPointer[0]->id, 1);
+  EXPECT_EQ(somethingVector[0].SomeObjectPointer[0]->identifier, "one");
+  ASSERT_TRUE(somethingVector[0].SomeObjectPointer[1]->id.has_value());
+  ASSERT_TRUE(somethingVector[0].SomeObjectPointer[1]->identifier.has_value());
+  EXPECT_EQ(somethingVector[0].SomeObjectPointer[1]->id, 2);
+  EXPECT_EQ(somethingVector[0].SomeObjectPointer[1]->identifier, "two");
+
+  std::string roundTrip = json5::ToString(somethingVector, JSONCompatWriteParams);
+  EXPECT_EQ(roundTrip, expected);
+
+  struct SomeSharedPtr
+  {
+    int mainId;
+    SomeObjectPtr SomeObjectPointer; // NOLINT(readability-identifier-naming)
+
+    JSON5_MEMBERS(mainId, SomeObjectPointer);
+  };
+
+  // Shared pointer object (not a vector)
+  expected = R"([{"mainId":5,"SomeObjectPointer":{"id":1,"identifier":"one"}}])";
+  std::vector<SomeSharedPtr> something;
+  error = json5::FromString(expected, something);
+  EXPECT_EQ(error.type, json5::Error::None);
+
+  ASSERT_EQ(something.size(), 1);
+  EXPECT_EQ(something[0].mainId, 5);
+  ASSERT_TRUE(something[0].SomeObjectPointer->id.has_value());
+  ASSERT_TRUE(something[0].SomeObjectPointer->identifier.has_value());
+  EXPECT_EQ(something[0].SomeObjectPointer->id, 1);
+  EXPECT_EQ(something[0].SomeObjectPointer->identifier, "one");
+
+  roundTrip = json5::ToString(something, JSONCompatWriteParams);
+  EXPECT_EQ(roundTrip, expected);
+
+  // Uninitialised pointer object. SomeObjectPtr should be a nullptr.
+  expected = R"([{"mainId":5}])";
+  error = json5::FromString(expected, something);
+  EXPECT_EQ(error.type, json5::Error::None);
+
+  ASSERT_EQ(something.size(), 1);
+  EXPECT_EQ(something[0].mainId, 5);
+  EXPECT_FALSE(something[0].SomeObjectPointer);
+
+  roundTrip = json5::ToString(something, JSONCompatWriteParams);
+  EXPECT_EQ(roundTrip, expected);
+}
