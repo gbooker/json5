@@ -223,7 +223,7 @@ namespace json5::detail
   template <typename T>
   struct Json5Access
   {
-    using SuperCls = typename T::Json5SuperClass;
+    using SuperCls = typename T::Json5SuperClass; // Typically compile errors here mean you've forgotten a JSON5_MEMBERS macro in the class
     constexpr static auto GetNames() noexcept { return T::GetJson5Names(); }
     constexpr static auto GetTie(T& out) noexcept { return out.getJson5Tie(); }
     constexpr static auto GetTie(const T& in) noexcept { return in.getJson5Tie(); }
