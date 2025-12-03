@@ -5,6 +5,7 @@
 #include <map>
 #include <math.h>
 #include <optional>
+#include <set>
 #include <unordered_map>
 
 #include "json5_builder.hpp"
@@ -279,6 +280,23 @@ namespace json5
         {
           w.beginArrayElement();
           ReflectionWriter<bool>::Write(w, (bool)in[i]);
+        }
+
+        w.endArray();
+      }
+    };
+
+    //---------------------------------------------------------------------------------------------------------------------
+    template <typename T, typename A>
+    struct ReflectionWriter<std::set<T, A>>
+    {
+      static inline void Write(Writer& w, const std::set<T, A>& in)
+      {
+        w.beginArray();
+        for (const T& value : in)
+        {
+          w.beginArrayElement();
+          ReflectionWriter<T>::Write(w, value);
         }
 
         w.endArray();
@@ -889,6 +907,40 @@ namespace json5
         else
           return std::make_unique<Reflector<T>>(m_obj.back());
       }
+    };
+
+    template <typename T, typename A>
+    class Reflector<std::set<T, A>> : public RefReflector<std::set<T, A>>
+    {
+    public:
+      using RefReflector<std::set<T, A>>::m_obj;
+
+      explicit Reflector(std::set<T, A>& obj)
+        : RefReflector<std::set<T, A>>::RefReflector(obj)
+        , m_inner(m_vec)
+      {
+        m_obj.clear();
+      }
+
+      static bool AllowsType(ValueType type) { return type == ValueType::Array; }
+      Error::Type getNonTypeError() override { return Error::ArrayExpected; }
+      bool allowArray() override { return true; }
+      std::unique_ptr<BaseReflector> getReflectorInArray() override { return m_inner.getReflectorInArray(); }
+
+      Error::Type complete() override
+      {
+        if (Error::Type err = m_inner.complete(); err != Error::None)
+          return err;
+
+        for (T& value : m_vec)
+          m_obj.insert(std::move(value));
+
+        return Error::None;
+      }
+
+    private:
+      std::vector<T> m_vec;
+      Reflector<std::vector<T>> m_inner;
     };
 
     template <typename ContainerType, typename T, size_t N>

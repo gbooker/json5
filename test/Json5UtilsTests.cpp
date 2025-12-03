@@ -194,6 +194,7 @@ struct Foo
   bool z = false;
   std::string text;
   std::vector<int> numbers;
+  std::set<float> floats;
   std::map<std::string, Bar> barMap;
 
   std::array<float, 3> position = {0.0f, 0.0f, 0.0f};
@@ -201,8 +202,8 @@ struct Foo
   Bar bar;
   // MyEnum e;
 
-  JSON5_MEMBERS(x, y, z, text, numbers, barMap, position, bar /*, e*/)
-  bool operator==(const Foo& o) const noexcept { return std::tie(x, y, z, text, numbers, barMap, position, bar /*, e*/) == std::tie(o.x, o.y, o.z, o.text, o.numbers, o.barMap, o.position, o.bar /*, o.e*/); }
+  JSON5_MEMBERS(x, y, z, text, numbers, floats, barMap, position, bar /*, e*/)
+  bool operator==(const Foo& o) const noexcept { return std::tie(x, y, z, text, numbers, floats, barMap, position, bar /*, e*/) == std::tie(o.x, o.y, o.z, o.text, o.numbers, o.floats, o.barMap, o.position, o.bar /*, o.e*/); }
 };
 
 /////////////////////////////////////////////////////////////////////////////////////////
@@ -351,6 +352,7 @@ TEST(Json5, LowLevelReflection)
         true,
         "Hello, world!",
         {1, 2, 3, 4, 5},
+        {3.14, 2.72, 6.28},
         {{"x", {{"a"}, 1}}, {"y", {{"b"}, 2}}, {"z", {{"c"}, 3}}},
         {10.0f, 20.0f, 30.0f},
         {{"Somebody Unknown"}, 500},
@@ -397,6 +399,7 @@ TEST(Json5, Reflection)
       true,
       "Hello, world!",
       {1, 2, 3, 4, 5},
+      {3.14, 2.72, 6.28},
       {{"x", {{"a"}, 1}}, {"y", {{"b"}, 2}}, {"z", {{"c"}, 3}}},
       {10.0f, 20.0f, 30.0f},
       {{"Somebody Unknown"}, 500},
@@ -436,6 +439,14 @@ TEST(Json5, Reflection)
           {3.0},
           {4.0},
           {5.0},
+        }}},
+      {"floats",
+        {json5::IndependentValue::Array {
+          // Note: the set serialized is in sorted order even through we
+          // didn't originally insert in sorted order
+          {2.72},
+          {3.14},
+          {6.28},
         }}},
       {"barMap",
         {json5::IndependentValue::Map {
