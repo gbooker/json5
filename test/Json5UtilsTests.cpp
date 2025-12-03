@@ -985,16 +985,16 @@ TEST(Json5, SharedPtr)
   {
     public:
       std::optional<int> id;
-      std::optional<string> identifier;
+      std::optional<std::string> identifier;
 
       JSON5_MEMBERS(id, identifier);
   };
-  DEFINE_SHARED(SomeObject);
+  using SomeObjectPtr = std::shared_ptr<SomeObject>;
 
   struct SomeVectorOfSharedPtr
   {
     int mainId;
-    vector<SomeObjectPtr> SomeObjectPointer; // NOLINT(readability-identifier-naming)
+    std::vector<SomeObjectPtr> SomeObjectPointer; // NOLINT(readability-identifier-naming)
 
     JSON5_MEMBERS(mainId, SomeObjectPointer);
   };
