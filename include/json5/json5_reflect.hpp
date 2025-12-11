@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <cassert>
 #include <fstream>
 #include <map>
 #include <math.h>
@@ -9,6 +10,7 @@
 #include <unordered_map>
 
 #include "json5_builder.hpp"
+#include "json5_input.hpp"
 #include "json5_output.hpp"
 
 namespace json5
